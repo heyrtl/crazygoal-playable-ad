@@ -2,6 +2,13 @@ import { useEffect, useRef } from 'preact/hooks';
 import * as THREE from 'three';
 import { createStriker } from '../utils/striker';
 import { createGoalie } from '../utils/goalie';
+import {
+  createPitchTexture,
+  createNetTexture,
+  createBallTexture,
+  createCrowdTexture,
+  createBillboardTexture
+} from '../utils/textureUtils';
 
 export type GameState = 'Idle' | 'Aiming' | 'Action' | 'EndCard';
 
@@ -29,87 +36,9 @@ export const GameCanvas = ({ gameState, setGameState, onGoal, playAudio, isViewa
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Scene setup
+    // --- Scene Setup ---
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#3b4cca'); // Brighter blue/purple
-    
-    // Stadium background plane
-    const bgCanvas = document.createElement('canvas');
-    bgCanvas.width = 1024;
-    bgCanvas.height = 512;
-    const bgCtx = bgCanvas.getContext('2d')!;
-    
-    // Stadium wall / sky
-    bgCtx.fillStyle = '#3b4cca'; 
-    bgCtx.fillRect(0, 0, 1024, 512);
-    
-    const bgTexture = new THREE.CanvasTexture(bgCanvas);
-    const bgPlane = new THREE.Mesh(new THREE.PlaneGeometry(40, 20), new THREE.MeshBasicMaterial({ map: bgTexture }));
-    bgPlane.position.set(0, 10, -15);
-    scene.add(bgPlane);
-
-    // SVG Gallery
-    const gallerySvg = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="192">
-        <defs>
-          <pattern id="crowd" width="60" height="30" patternUnits="userSpaceOnUse">
-            <circle cx="10" cy="10" r="5" fill="#111122" />
-            <path d="M3,30 L3,20 C3,15 17,15 17,20 L17,30 Z" fill="#111122" />
-            <circle cx="30" cy="14" r="4" fill="#1a1a3a" />
-            <path d="M24,30 L24,22 C24,18 36,18 36,22 L36,30 Z" fill="#1a1a3a" />
-            <circle cx="50" cy="8" r="4.5" fill="#0a0a1a" />
-            <path d="M43,30 L43,18 C43,14 57,14 57,18 L57,30 Z" fill="#0a0a1a" />
-          </pattern>
-        </defs>
-        <rect x="0" y="0" width="1024" height="192" fill="#2a2a4a" />
-        <path d="M0,0 L1024,0" stroke="#1a1a2e" stroke-width="8" />
-        <rect x="0" y="12" width="1024" height="30" fill="url(#crowd)" />
-        <rect x="0" y="42" width="1024" height="30" fill="url(#crowd)" />
-        <rect x="0" y="72" width="1024" height="30" fill="url(#crowd)" />
-        <rect x="0" y="102" width="1024" height="30" fill="url(#crowd)" />
-        <rect x="0" y="132" width="1024" height="30" fill="url(#crowd)" />
-        <rect x="0" y="162" width="1024" height="30" fill="url(#crowd)" />
-        <circle cx="120" cy="50" r="2" fill="#ffffff" />
-        <circle cx="340" cy="80" r="1.5" fill="#ffffff" />
-        <circle cx="560" cy="110" r="2.5" fill="#ffffff" />
-        <circle cx="780" cy="40" r="1.5" fill="#ffffff" />
-        <circle cx="910" cy="140" r="2" fill="#ffffff" />
-        <circle cx="250" cy="120" r="1.5" fill="#ffffff" />
-        <circle cx="670" cy="70" r="2" fill="#ffffff" />
-      </svg>
-    `;
-    const img = new Image();
-    img.onload = () => {
-      bgCtx.drawImage(img, 0, 320);
-      bgTexture.needsUpdate = true;
-    };
-    img.src = 'data:image/svg+xml;base64,' + btoa(gallerySvg);
-    
-    // Seats (original top seats)
-    bgCtx.fillStyle = '#5c4b99';
-    bgCtx.fillRect(0, 50, 1024, 150);
-    bgCtx.fillStyle = '#7a67c2';
-    for(let i=0; i<10; i++) {
-        bgCtx.fillRect(i*110 + 20, 70, 80, 40);
-        bgCtx.fillRect(i*110 + 20, 130, 80, 40);
-    }
-    
-    // Wall trim
-    bgCtx.fillStyle = '#2c3e50';
-    bgCtx.fillRect(0, 200, 1024, 20);
-    
-    // Yellow Flags
-    bgCtx.fillStyle = '#ffeb3b';
-    for(let i=0; i<5; i++) {
-        const x = i * 250 + 50;
-        bgCtx.beginPath();
-        bgCtx.moveTo(x, 220);
-        bgCtx.lineTo(x + 60, 220);
-        bgCtx.lineTo(x + 60, 320);
-        bgCtx.lineTo(x + 30, 290);
-        bgCtx.lineTo(x, 320);
-        bgCtx.fill();
-    }
+    scene.background = new THREE.Color('#3b4cca');
 
     const width = containerRef.current.clientWidth;
     const height = containerRef.current.clientHeight;
@@ -120,288 +49,159 @@ export const GameCanvas = ({ gameState, setGameState, onGoal, playAudio, isViewa
     camera.lookAt(0, 0, -4);
 
     // Renderer
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
     containerRef.current.appendChild(renderer.domElement);
 
     // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.85); // Brighter ambient
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
     scene.add(ambientLight);
 
     const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
     dirLight.position.set(5, 10, 5);
     dirLight.castShadow = true;
-    dirLight.shadow.camera.top = 15;
-    dirLight.shadow.camera.bottom = -15;
-    dirLight.shadow.camera.left = -15;
-    dirLight.shadow.camera.right = 15;
-    dirLight.shadow.mapSize.width = 1024;
-    dirLight.shadow.mapSize.height = 1024;
+    dirLight.shadow.mapSize.set(512, 512); // Reduced from 1024 for faster init
     scene.add(dirLight);
 
-    // Pitch (Real Grass Texture)
-    const pitchCanvas = document.createElement('canvas');
-    pitchCanvas.width = 512;
-    pitchCanvas.height = 512;
-    const pCtx = pitchCanvas.getContext('2d')!;
-    
-    // Stripes - Brighter casual green
-    for (let i = 0; i < 8; i++) {
-        pCtx.fillStyle = i % 2 === 0 ? '#5cdb5c' : '#4bc94b';
-        pCtx.fillRect(0, i * 64, 512, 64);
-    }
-    
-    const pitchTexture = new THREE.CanvasTexture(pitchCanvas);
-    pitchTexture.wrapS = THREE.RepeatWrapping;
-    pitchTexture.wrapT = THREE.RepeatWrapping;
-    pitchTexture.repeat.set(1, 10);
+    // --- Environment Assets (Procedural & Optimized) ---
+
+    // Background Stadium
+    const stadiumTexture = createCrowdTexture();
+    const bgPlane = new THREE.Mesh(new THREE.PlaneGeometry(40, 20), new THREE.MeshBasicMaterial({ map: stadiumTexture }));
+    bgPlane.position.set(0, 10, -15);
+    scene.add(bgPlane);
+
+    // Pitch
+    const pitchTexture = createPitchTexture();
     pitchTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    
-    const pitchGeometry = new THREE.PlaneGeometry(30, 60);
-    const pitchMaterial = new THREE.MeshStandardMaterial({ map: pitchTexture, roughness: 0.8 });
-    const pitch = new THREE.Mesh(pitchGeometry, pitchMaterial);
+    const pitch = new THREE.Mesh(
+      new THREE.PlaneGeometry(30, 60),
+      new THREE.MeshStandardMaterial({ map: pitchTexture, roughness: 0.8 })
+    );
     pitch.rotation.x = -Math.PI / 2;
     pitch.position.z = -5;
     pitch.receiveShadow = true;
     scene.add(pitch);
 
-    // Pitch Markings (Three.js meshes for perfect alignment)
+    // Pitch Markings
     const lineMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    
-    // Penalty Box (Rectangle)
-    const penBoxGeo = new THREE.RingGeometry(4.9, 5.0, 4, 1, Math.PI/4, Math.PI*2);
-    // Wait, RingGeometry for a rectangle is tricky. Let's use planes.
-    
     const createLine = (w: number, h: number, x: number, z: number) => {
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), lineMaterial);
       mesh.rotation.x = -Math.PI / 2;
       mesh.position.set(x, 0.01, z);
       scene.add(mesh);
     };
+    createLine(10, 0.1, 0, -2);   // Penalty Box
+    createLine(0.1, 4, -5, -4);
+    createLine(0.1, 4, 5, -4);
+    createLine(4, 0.1, 0, -4.5); // Goal Area
+    createLine(0.1, 1.5, -2, -5.25);
+    createLine(0.1, 1.5, 2, -5.25);
+    createLine(30, 0.1, 0, 8);   // Halfway
 
-    // Penalty Box Lines (Goal is at z = -6)
-    createLine(10, 0.1, 0, -2); // Front line
-    createLine(0.1, 4, -5, -4); // Left line
-    createLine(0.1, 4, 5, -4);  // Right line
-
-    // Goal Area Lines
-    createLine(4, 0.1, 0, -4.5); // Front line
-    createLine(0.1, 1.5, -2, -5.25); // Left
-    createLine(0.1, 1.5, 2, -5.25);  // Right
-
-    // D-Box (Arc outside penalty box)
-    const arcGeometry = new THREE.RingGeometry(2, 2.1, 32, 1, Math.PI, Math.PI);
-    const arc = new THREE.Mesh(arcGeometry, lineMaterial);
+    const arc = new THREE.Mesh(new THREE.RingGeometry(2, 2.1, 24, 1, Math.PI, Math.PI), lineMaterial);
     arc.position.set(0, 0.01, -2);
     arc.rotation.x = -Math.PI / 2;
     scene.add(arc);
 
-    // Penalty Spot
-    const spot = new THREE.Mesh(new THREE.CircleGeometry(0.15, 16), lineMaterial);
+    const spot = new THREE.Mesh(new THREE.CircleGeometry(0.15, 8), lineMaterial);
     spot.rotation.x = -Math.PI / 2;
     spot.position.set(0, 0.01, -3.5);
     scene.add(spot);
 
-    // Halfway line
-    createLine(30, 0.1, 0, 8);
-    
-    // Center Circle
-    const centerCircle = new THREE.Mesh(new THREE.RingGeometry(3, 3.1, 32), lineMaterial);
-    centerCircle.rotation.x = -Math.PI / 2;
-    centerCircle.position.set(0, 0.01, 8);
-    scene.add(centerCircle);
-
-    // Goalpost
+    // Goal Architecture
     const postMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
-    const postGeometry = new THREE.CylinderGeometry(0.1, 0.1, 3);
-    
-    const leftPost = new THREE.Mesh(postGeometry, postMaterial);
+    const leftPost = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 3), postMaterial);
     leftPost.position.set(-3, 1.5, -6);
-    leftPost.castShadow = true;
     scene.add(leftPost);
 
-    const rightPost = new THREE.Mesh(postGeometry, postMaterial);
+    const rightPost = leftPost.clone();
     rightPost.position.set(3, 1.5, -6);
-    rightPost.castShadow = true;
     scene.add(rightPost);
 
-    const crossbarGeometry = new THREE.CylinderGeometry(0.1, 0.1, 6.2);
-    const crossbar = new THREE.Mesh(crossbarGeometry, postMaterial);
+    const crossbar = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 6.2), postMaterial);
     crossbar.position.set(0, 3, -6);
     crossbar.rotation.z = Math.PI / 2;
-    crossbar.castShadow = true;
     scene.add(crossbar);
 
-    // Back supports
-    const supportGeo = new THREE.CylinderGeometry(0.05, 0.05, 3.5);
-    const leftSupport = new THREE.Mesh(supportGeo, postMaterial);
-    leftSupport.position.set(-3, 1.5, -7.5);
-    leftSupport.rotation.x = -Math.PI / 6;
-    scene.add(leftSupport);
-    
-    const rightSupport = new THREE.Mesh(supportGeo, postMaterial);
-    rightSupport.position.set(3, 1.5, -7.5);
-    rightSupport.rotation.x = -Math.PI / 6;
-    scene.add(rightSupport);
-
-    const backBarGeo = new THREE.CylinderGeometry(0.05, 0.05, 6.2);
-    const backBar = new THREE.Mesh(backBarGeo, postMaterial);
-    backBar.position.set(0, 0.05, -9);
-    backBar.rotation.z = Math.PI / 2;
-    scene.add(backBar);
-
     // Net
-    const netCanvas = document.createElement('canvas');
-    netCanvas.width = 256;
-    netCanvas.height = 256;
-    const nCtx = netCanvas.getContext('2d')!;
-    nCtx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-    nCtx.lineWidth = 4;
-    for(let i=0; i<=256; i+=32) {
-        nCtx.beginPath(); nCtx.moveTo(i, 0); nCtx.lineTo(i, 256); nCtx.stroke();
-        nCtx.beginPath(); nCtx.moveTo(0, i); nCtx.lineTo(256, i); nCtx.stroke();
-    }
-    const netTexture = new THREE.CanvasTexture(netCanvas);
-    netTexture.wrapS = THREE.RepeatWrapping;
-    netTexture.wrapT = THREE.RepeatWrapping;
-    netTexture.repeat.set(3, 2);
-    
-    const netMaterial = new THREE.MeshBasicMaterial({ map: netTexture, transparent: true, opacity: 0.7, side: THREE.DoubleSide });
-    
+    const netMaterial = new THREE.MeshBasicMaterial({
+      map: createNetTexture(),
+      transparent: true,
+      opacity: 0.5,
+      side: THREE.DoubleSide
+    });
     const backNet = new THREE.Mesh(new THREE.PlaneGeometry(6, 3.5), netMaterial);
     backNet.position.set(0, 1.5, -7.5);
     backNet.rotation.x = Math.PI / 6;
     scene.add(backNet);
 
-    const sideNetGeo = new THREE.BufferGeometry();
-    const vertices = new Float32Array([
-        0, 3, 0,   0, 0, 0,   0, 0, -3,
-        0, 3, 0,   0, 0, -3,  0, 0, 0
-    ]);
-    sideNetGeo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-    sideNetGeo.computeVertexNormals();
-    
-    const leftSideNet = new THREE.Mesh(sideNetGeo, netMaterial);
-    leftSideNet.position.set(-3, 0, -6);
-    scene.add(leftSideNet);
-    
-    const rightSideNet = new THREE.Mesh(sideNetGeo, netMaterial);
-    rightSideNet.position.set(3, 0, -6);
-    scene.add(rightSideNet);
-
-    // Goal Billboard
-    const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 256;
-    const ctx = canvas.getContext('2d')!;
-    ctx.fillStyle = 'black';
-    ctx.fillRect(0, 0, 512, 256);
-    
-    // CRAZY
-    const grad1 = ctx.createLinearGradient(0, 50, 0, 120);
-    grad1.addColorStop(0, '#f1c40f'); // Yellow
-    grad1.addColorStop(1, '#e67e22'); // Orange
-    ctx.fillStyle = grad1;
-    ctx.strokeStyle = 'white';
-    ctx.lineWidth = 4;
-    ctx.font = '80px "GameFont", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.strokeText('CRAZY', 256, 110);
-    ctx.fillText('CRAZY', 256, 110);
-    
-    // GOAAL!
-    const grad2 = ctx.createLinearGradient(0, 130, 0, 220);
-    grad2.addColorStop(0, '#85c1e9'); // Light blue
-    grad2.addColorStop(1, '#2e86c1'); // Dark blue
-    ctx.fillStyle = grad2;
-    ctx.strokeStyle = 'white';
-    ctx.lineWidth = 6;
-    ctx.font = '100px "GameFont", sans-serif';
-    ctx.strokeText('GOAAL!', 256, 210);
-    ctx.fillText('GOAAL!', 256, 210);
-
-    const billboardTexture = new THREE.CanvasTexture(canvas);
-    const billboardMaterial = new THREE.MeshBasicMaterial({ map: billboardTexture });
-    const billboard = new THREE.Mesh(new THREE.PlaneGeometry(4, 2), billboardMaterial);
+    // Billboard
+    const billboard = new THREE.Mesh(
+      new THREE.PlaneGeometry(4, 2),
+      new THREE.MeshBasicMaterial({ map: createBillboardTexture('GameFont') })
+    );
     billboard.position.set(0, 4.5, -6);
     scene.add(billboard);
 
-    // Characters
+    // --- Characters & Ball ---
     const striker = createStriker();
-    striker.group.position.set(0, 0, 2);
-    striker.group.rotation.y = Math.PI;
-    scene.add(striker.group);
-
     const goalie = createGoalie();
-    goalie.group.position.set(0, 0, -3.8);
-    scene.add(goalie.group);
+    scene.add(striker.group, goalie.group);
 
-    // Ball
-    const ballCanvas = document.createElement('canvas');
-    ballCanvas.width = 128;
-    ballCanvas.height = 128;
-    const bCtx = ballCanvas.getContext('2d')!;
-    bCtx.fillStyle = 'white';
-    bCtx.fillRect(0, 0, 128, 128);
-    bCtx.fillStyle = 'black';
-    for(let i=0; i<6; i++) {
-        for(let j=0; j<3; j++) {
-            bCtx.beginPath();
-            bCtx.arc(i*25 + (j%2)*12, j*42, 8, 0, Math.PI*2);
-            bCtx.fill();
-        }
-    }
-    const ballTexture = new THREE.CanvasTexture(ballCanvas);
-    const ballGeometry = new THREE.SphereGeometry(0.2, 16, 16);
-    const ballMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, map: ballTexture });
-    const ball = new THREE.Mesh(ballGeometry, ballMaterial);
+    const ball = new THREE.Mesh(
+      new THREE.SphereGeometry(0.2, 12, 12),
+      new THREE.MeshStandardMaterial({ map: createBallTexture() })
+    );
     ball.position.set(0.5, 0.2, 1.5);
     ball.castShadow = true;
     scene.add(ball);
 
-    // Trajectory Points
+    // --- Deferred Non-Critical Object Creation ---
     const trajectoryPoints: THREE.Mesh[] = [];
-    const pointGeo = new THREE.SphereGeometry(0.05);
-    const pointMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    for (let i = 0; i < 15; i++) {
-      const pt = new THREE.Mesh(pointGeo, pointMat);
-      pt.visible = false;
-      scene.add(pt);
-      trajectoryPoints.push(pt);
-    }
-
-    // Particles
     const particles: { mesh: THREE.Mesh, velocity: THREE.Vector3, life: number }[] = [];
+    const trailPoints: THREE.Mesh[] = [];
+    let trailIndex = 0;
+
+    // Use a small timeout to let the primary scene render first
+    setTimeout(() => {
+      const ptGeo = new THREE.SphereGeometry(0.05, 8, 8);
+      const ptMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+      for (let i = 0; i < 15; i++) {
+        const pt = new THREE.Mesh(ptGeo, ptMat);
+        pt.visible = false;
+        scene.add(pt);
+        trajectoryPoints.push(pt);
+      }
+
+      const trailGeo = new THREE.SphereGeometry(0.15, 6, 6);
+      const trailMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
+      for (let i = 0; i < 15; i++) {
+        const mesh = new THREE.Mesh(trailGeo, trailMat.clone());
+        mesh.visible = false;
+        scene.add(mesh);
+        trailPoints.push(mesh);
+      }
+    }, 100);
+
     const colors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00];
     const spawnParticles = () => {
-      for (let i = 0; i < 100; i++) {
+      for (let i = 0; i < 60; i++) {
         const mat = new THREE.MeshBasicMaterial({ color: colors[Math.floor(Math.random() * colors.length)], side: THREE.DoubleSide });
         const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.1), mat);
         mesh.position.set(Math.random() > 0.5 ? 3 : -3, 3, -6);
         scene.add(mesh);
         particles.push({
           mesh,
-          velocity: new THREE.Vector3((Math.random() - 0.5) * 10, Math.random() * 5 + 2, (Math.random() - 0.5) * 5),
+          velocity: new THREE.Vector3((Math.random() - 0.5) * 8, Math.random() * 5 + 2, (Math.random() - 0.5) * 4),
           life: 1.0
         });
       }
     };
 
-    // Ball Trail
-    const trailPoints: THREE.Mesh[] = [];
-    const trailGeo = new THREE.SphereGeometry(0.15, 8, 8);
-    const trailMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
-    for (let i = 0; i < 20; i++) {
-      const mesh = new THREE.Mesh(trailGeo, trailMat.clone());
-      mesh.visible = false;
-      scene.add(mesh);
-      trailPoints.push(mesh);
-    }
-    let trailIndex = 0;
-
-    // State variables
+    // --- Action State Logic ---
     let dragStart = new THREE.Vector2();
     let dragCurrent = new THREE.Vector2();
     let isDragging = false;
@@ -416,7 +216,14 @@ export const GameCanvas = ({ gameState, setGameState, onGoal, playAudio, isViewa
     let isKicking = false;
     let kickTime = 0;
 
-    // Input Handling
+    let isApproaching = false;
+    let approachProgress = 0;
+    const strikerStartPos = new THREE.Vector3(-2.5, 0, 3.5);
+    const kickPos = new THREE.Vector3(0.5, 0, 1.8);
+
+    striker.group.position.copy(strikerStartPos);
+    striker.group.lookAt(ball.position.x, 0, ball.position.z);
+
     const onPointerDown = (e: PointerEvent) => {
       if (e.target !== renderer.domElement) return;
       if (gameStateRef.current !== 'Idle' && gameStateRef.current !== 'Aiming') return;
@@ -434,28 +241,17 @@ export const GameCanvas = ({ gameState, setGameState, onGoal, playAudio, isViewa
     const onPointerUp = (e: PointerEvent) => {
       if (!isDragging) return;
       isDragging = false;
-      
-      const dx = dragStart.x - dragCurrent.x;
-      const dy = dragCurrent.y - dragStart.y; // Drag down = positive dy
-      
+      const dy = dragCurrent.y - dragStart.y;
       if (dy > 10) {
         setGameState('Action');
-        
-        // Calculate velocity
+        isApproaching = true;
+        approachProgress = 0;
         const power = Math.min(dy / 20, 15);
-        const angle = dx / 50;
-        
+        const angle = (dragStart.x - dragCurrent.x) / 50;
         ballVelocity.set(angle, power * 0.4, -power);
-        ballActive = true;
-        playAudio('kick');
-        
-        // Striker animation
-        isKicking = true;
-        kickTime = 0;
       } else {
         setGameState('Idle');
       }
-      
       trajectoryPoints.forEach(pt => pt.visible = false);
     };
 
@@ -463,7 +259,6 @@ export const GameCanvas = ({ gameState, setGameState, onGoal, playAudio, isViewa
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
 
-    // Resize
     const onResize = () => {
       if (!containerRef.current) return;
       const w = containerRef.current.clientWidth;
@@ -473,12 +268,8 @@ export const GameCanvas = ({ gameState, setGameState, onGoal, playAudio, isViewa
       renderer.setSize(w, h);
     };
     window.addEventListener('resize', onResize);
-    window.addEventListener('orientationchange', () => setTimeout(onResize, 100));
-    if (typeof (window as any).mraid !== 'undefined') {
-      (window as any).mraid.addEventListener('sizeChange', onResize);
-    }
 
-    // Animation Loop
+    // --- Animation Loop ---
     let lastTime = performance.now();
     const animate = () => {
       if (!isViewableRef.current) {
@@ -486,27 +277,20 @@ export const GameCanvas = ({ gameState, setGameState, onGoal, playAudio, isViewa
         animationFrameId = requestAnimationFrame(animate);
         return;
       }
-
       const now = performance.now();
-      const dt = Math.min((now - lastTime) / 1000, 0.1); // Cap dt
+      const dt = Math.min((now - lastTime) / 1000, 0.1);
       lastTime = now;
 
       if (gameStateRef.current === 'Aiming') {
         goalie.update(dt, 'ready');
-        const dx = dragStart.x - dragCurrent.x;
-        const dy = dragCurrent.y - dragStart.y;
-        const power = Math.min(dy / 20, 15);
-        const angle = dx / 50;
-        
-        const v = new THREE.Vector3(angle, power * 0.4, -power);
+        striker.update(dt, 'aiming');
+        const v = new THREE.Vector3((dragStart.x - dragCurrent.x)/50, Math.min((dragCurrent.y-dragStart.y)/20, 15)*0.4, -Math.min((dragCurrent.y-dragStart.y)/20, 15));
         const pos = ball.position.clone();
-        
-        for (let i = 0; i < 15; i++) {
+        for (let i = 0; i < trajectoryPoints.length; i++) {
           const t = i * 0.1;
           const px = pos.x + v.x * t;
           const py = pos.y + v.y * t - 0.5 * 9.8 * t * t;
           const pz = pos.z + v.z * t;
-          
           if (py > 0) {
             trajectoryPoints[i].position.set(px, py, pz);
             trajectoryPoints[i].visible = true;
@@ -514,37 +298,38 @@ export const GameCanvas = ({ gameState, setGameState, onGoal, playAudio, isViewa
             trajectoryPoints[i].visible = false;
           }
         }
-
-        // Animate striker prep
-        const pullBackAngle = Math.min(power * 0.1, Math.PI / 3);
-        striker.rightLeg.rotation.x = -pullBackAngle;
-        striker.leftArm.rotation.x = -Math.PI / 6 - pullBackAngle * 0.5;
-        striker.rightArm.rotation.x = Math.PI / 6 + pullBackAngle * 0.5;
       } else if (gameStateRef.current === 'Idle') {
         goalie.update(dt, 'idle');
         striker.update(dt, 'idle');
+        striker.group.position.lerp(strikerStartPos, dt * 5);
+        striker.group.lookAt(ball.position.x, 0, ball.position.z);
+      }
+
+      if (isApproaching) {
+        approachProgress += dt * 2.5;
+        if (approachProgress < 1) {
+          striker.update(dt, 'approaching');
+          striker.group.position.lerpVectors(strikerStartPos, kickPos, approachProgress);
+          striker.group.lookAt(ball.position.x, 0, ball.position.z);
+        } else {
+          isApproaching = false;
+          ballActive = true;
+          isKicking = true;
+          kickTime = 0;
+          playAudio('kick');
+        }
       }
 
       if (isKicking) {
         kickTime += dt;
-        if (kickTime < 0.1) {
-          // Swing forward
-          striker.rightLeg.rotation.x = THREE.MathUtils.lerp(striker.rightLeg.rotation.x, Math.PI / 4, dt * 30);
-          striker.leftArm.rotation.x = THREE.MathUtils.lerp(striker.leftArm.rotation.x, Math.PI / 4, dt * 30);
-          striker.rightArm.rotation.x = THREE.MathUtils.lerp(striker.rightArm.rotation.x, -Math.PI / 4, dt * 30);
-        } else if (kickTime < 0.5) {
-          // Follow through and return
-          striker.rightLeg.rotation.x = THREE.MathUtils.lerp(striker.rightLeg.rotation.x, 0, dt * 10);
-          striker.leftArm.rotation.x = THREE.MathUtils.lerp(striker.leftArm.rotation.x, -Math.PI / 6, dt * 10);
-          striker.rightArm.rotation.x = THREE.MathUtils.lerp(striker.rightArm.rotation.x, Math.PI / 6, dt * 10);
-        } else {
-          isKicking = false;
-        }
+        striker.update(dt, 'kicking');
+        striker.rightLeg.rotation.x = kickTime < 0.1 ? THREE.MathUtils.lerp(striker.rightLeg.rotation.x, Math.PI / 4, dt * 30) : THREE.MathUtils.lerp(striker.rightLeg.rotation.x, 0, dt * 10);
+        if (kickTime >= 0.5) isKicking = false;
       }
 
       if (gameStateRef.current === 'Action' && !goalScored) {
         actionTime += dt;
-        if (actionTime > 3) {
+        if (actionTime > 5) { // Longer timeout to allow for approach
           goalScored = true;
           onGoal();
         }
@@ -556,52 +341,43 @@ export const GameCanvas = ({ gameState, setGameState, onGoal, playAudio, isViewa
         ball.rotation.x -= ballVelocity.z * dt;
         ball.rotation.z += ballVelocity.x * dt;
 
-        // Update trail
-        const tMesh = trailPoints[trailIndex];
-        tMesh.position.copy(ball.position);
-        tMesh.visible = true;
-        (tMesh.material as THREE.MeshBasicMaterial).opacity = 0.5;
-        trailIndex = (trailIndex + 1) % trailPoints.length;
-
-        // Goalie AI
-        if (!goalieDiving && ball.position.z < -1) {
-          goalieDiving = true;
-        }
-        if (goalieDiving && goalie.group.position.x < 2) {
-           goalie.update(dt, 'saveLeft');
-           goalie.group.position.x += 5 * dt;
-           goalie.group.position.y = THREE.MathUtils.lerp(goalie.group.position.y, 0.5, dt * 5);
-           goalie.group.rotation.z = THREE.MathUtils.lerp(goalie.group.rotation.z, -Math.PI / 2, dt * 10);
-        } else if (!goalieDiving) {
-           goalie.update(dt, 'ready');
+        if (trailPoints.length > 0) {
+          const tMesh = trailPoints[trailIndex];
+          tMesh.position.copy(ball.position);
+          tMesh.visible = true;
+          (tMesh.material as THREE.MeshBasicMaterial).opacity = 0.5;
+          trailIndex = (trailIndex + 1) % trailPoints.length;
         }
 
-        // Goal collision
-        if (!goalScored && ball.position.z < -6 && ball.position.x > -3 && ball.position.x < 3 && ball.position.y < 3) {
-          goalScored = true;
-          ballActive = false;
-          playAudio('goal');
-          spawnParticles();
-          shakeTime = 0.5;
-          shakeIntensity = 0.3;
+        const ballDistToGoal = ball.position.z - (-6);
+        if (!goalieDiving && ballDistToGoal < 4) goalieDiving = true;
+        if (goalieDiving) {
+          const targetX = THREE.MathUtils.clamp(ball.position.x * 1.5, -2.8, 2.8);
+          const diveDirection = targetX > goalie.group.position.x ? 1 : -1;
+          goalie.update(dt, diveDirection > 0 ? 'saveRight' : 'saveLeft');
+          goalie.group.position.x = THREE.MathUtils.lerp(goalie.group.position.x, targetX, dt * 8);
+          goalie.group.position.y = THREE.MathUtils.lerp(goalie.group.position.y, 0.4, dt * 5);
+          goalie.group.rotation.z = THREE.MathUtils.lerp(goalie.group.rotation.z, -diveDirection * Math.PI / 2.2, dt * 10);
+        } else {
+          goalie.update(dt, 'ready');
+        }
+
+        if (!goalScored && ball.position.z < -6 && Math.abs(ball.position.x) < 3 && ball.position.y < 3) {
+          goalScored = true; ballActive = false;
+          playAudio('goal'); spawnParticles();
+          shakeTime = 0.5; shakeIntensity = 0.3;
           onGoal();
         }
 
-        // Floor collision
         if (ball.position.y < 0.2) {
-          ball.position.y = 0.2;
-          ballVelocity.y *= -0.6;
-          ballVelocity.x *= 0.8;
-          ballVelocity.z *= 0.8;
+          ball.position.y = 0.2; ballVelocity.y *= -0.6;
+          ballVelocity.x *= 0.8; ballVelocity.z *= 0.8;
           if (Math.abs(ballVelocity.y) > 1) {
-            playAudio('bounce');
-            shakeTime = 0.2;
-            shakeIntensity = 0.1;
+            playAudio('bounce'); shakeTime = 0.2; shakeIntensity = 0.1;
           }
         }
       }
 
-      // Fade out trail points
       for (let i = 0; i < trailPoints.length; i++) {
         if (trailPoints[i].visible) {
           const mat = trailPoints[i].material as THREE.MeshBasicMaterial;
@@ -610,13 +386,10 @@ export const GameCanvas = ({ gameState, setGameState, onGoal, playAudio, isViewa
         }
       }
 
-      // Particles
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
         p.mesh.position.addScaledVector(p.velocity, dt);
         p.velocity.y -= 9.8 * dt;
-        p.mesh.rotation.x += dt * 5;
-        p.mesh.rotation.y += dt * 5;
         p.life -= dt;
         if (p.life <= 0 || p.mesh.position.y < 0) {
           scene.remove(p.mesh);
@@ -624,17 +397,10 @@ export const GameCanvas = ({ gameState, setGameState, onGoal, playAudio, isViewa
         }
       }
 
-      // Screen Shake
       if (shakeTime > 0) {
         shakeTime -= dt;
-        camera.position.set(
-          0 + (Math.random() - 0.5) * shakeIntensity,
-          4 + (Math.random() - 0.5) * shakeIntensity,
-          8 + (Math.random() - 0.5) * shakeIntensity
-        );
-      } else {
-        camera.position.set(0, 4, 8);
-      }
+        camera.position.set((Math.random()-0.5)*shakeIntensity, 4+(Math.random()-0.5)*shakeIntensity, 8+(Math.random()-0.5)*shakeIntensity);
+      } else { camera.position.set(0, 4, 8); }
 
       renderer.render(scene, camera);
       animationFrameId = requestAnimationFrame(animate);
@@ -646,13 +412,12 @@ export const GameCanvas = ({ gameState, setGameState, onGoal, playAudio, isViewa
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('resize', onResize);
-      window.removeEventListener('orientationchange', onResize);
-      if (typeof (window as any).mraid !== 'undefined') {
-        (window as any).mraid.removeEventListener('sizeChange', onResize);
-      }
       cancelAnimationFrame(animationFrameId);
       containerRef.current?.removeChild(renderer.domElement);
       renderer.dispose();
+      pitchTexture.dispose();
+      stadiumTexture.dispose();
+      netMaterial.map?.dispose();
     };
   }, []);
 

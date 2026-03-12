@@ -69,45 +69,59 @@ export const createGoalie = () => {
   let elapsed = 0;
   let state: GoalieState = 'ready';
 
-  // Target rotations
-  const target = {
-    lArmZ:  Math.PI / 2.5,
-    rArmZ: -Math.PI / 2.5,
-    lLegZ:  Math.PI / 6,
-    rLegZ: -Math.PI / 6,
-    groupX: 0,
+  // Current pose state for lerping
+  const current = {
+    lArmX: 0, lArmY: 0, lArmZ: Math.PI / 2.5,
+    rArmX: 0, rArmY: 0, rArmZ: -Math.PI / 2.5,
+    lLegX: 0, lLegY: 0, lLegZ: Math.PI / 6,
+    rLegX: 0, rLegY: 0, rLegZ: -Math.PI / 6,
+    torsoX: 0,
+    posY: -0.1
   };
 
-  const POSES: Record<GoalieState, typeof target> = {
+  const POSES: Record<GoalieState, any> = {
     idle: {
-      lArmZ:  0.3,  rArmZ: -0.3,
-      lLegZ:  0.1,  rLegZ: -0.1,
-      groupX: 0,
+      lArmX: 0, lArmY: 0, lArmZ: 0.3,
+      rArmX: 0, rArmY: 0, rArmZ: -0.3,
+      lLegX: 0, lLegY: 0, lLegZ: 0.1,
+      rLegX: 0, rLegY: 0, rLegZ: -0.1,
+      torsoX: 0, posY: -0.1
     },
     ready: {
-      lArmZ:  Math.PI / 2.5,  rArmZ: -Math.PI / 2.5,
-      lLegZ:  Math.PI / 6,  rLegZ: -Math.PI / 6,
-      groupX: 0,
+      lArmX: -0.5, lArmY: 0.4, lArmZ: 1.2, // Arms wide and slightly forward
+      rArmX: -0.5, rArmY: -0.4, rArmZ: -1.2,
+      lLegX: 0.6, lLegY: -0.2, lLegZ: 0.3, // Squatting: legs forward and out
+      rLegX: 0.6, rLegY: 0.2, rLegZ: -0.3,
+      torsoX: 0.2, // Lean forward
+      posY: -0.3   // Lower center of gravity
     },
     coverLeft: {
-      lArmZ:  1.4,  rArmZ: -0.3,
-      lLegZ:  0.5,  rLegZ: -0.2,
-      groupX: 0,
+      lArmX: -0.2, lArmY: 0.2, lArmZ: 1.4,
+      rArmX: -0.2, rArmY: -0.2, rArmZ: -0.3,
+      lLegX: 0.3, lLegY: -0.1, lLegZ: 0.5,
+      rLegX: 0.3, rLegY: 0.1, rLegZ: -0.2,
+      torsoX: 0.1, posY: -0.2
     },
     coverRight: {
-      lArmZ:  0.3,  rArmZ: -1.4,
-      lLegZ:  0.2,  rLegZ: -0.5,
-      groupX: 0,
+      lArmX: -0.2, lArmY: 0.2, lArmZ: 0.3,
+      rArmX: -0.2, rArmY: -0.2, rArmZ: -1.4,
+      lLegX: 0.3, lLegY: -0.1, lLegZ: 0.2,
+      rLegX: 0.3, rLegY: 0.1, rLegZ: -0.5,
+      torsoX: 0.1, posY: -0.2
     },
     saveLeft: {
-      lArmZ:  2.0,  rArmZ: -0.2,
-      lLegZ:  0.7,  rLegZ: -0.15,
-      groupX: 0,
+      lArmX: 0, lArmY: 0, lArmZ: 2.0,
+      rArmX: 0, rArmY: 0, rArmZ: -0.2,
+      lLegX: 0, lLegY: 0, lLegZ: 0.7,
+      rLegX: 0, rLegY: 0, rLegZ: -0.15,
+      torsoX: 0, posY: 0
     },
     saveRight: {
-      lArmZ:  0.2,  rArmZ: -2.0,
-      lLegZ:  0.15, rLegZ: -0.7,
-      groupX: 0,
+      lArmX: 0, lArmY: 0, lArmZ: 0.2,
+      rArmX: 0, rArmY: 0, rArmZ: -2.0,
+      lLegX: 0, lLegY: 0, lLegZ: 0.15,
+      rLegX: 0, rLegY: 0, rLegZ: -0.7,
+      torsoX: 0, posY: 0
     },
   };
 
@@ -122,20 +136,39 @@ export const createGoalie = () => {
     const pose = POSES[state];
 
     // Lerp toward target pose
-    target.lArmZ = lerp(target.lArmZ, pose.lArmZ, t);
-    target.rArmZ = lerp(target.rArmZ, pose.rArmZ, t);
-    target.lLegZ = lerp(target.lLegZ, pose.lLegZ, t);
-    target.rLegZ = lerp(target.rLegZ, pose.rLegZ, t);
+    current.lArmX = lerp(current.lArmX, pose.lArmX, t);
+    current.lArmY = lerp(current.lArmY, pose.lArmY, t);
+    current.lArmZ = lerp(current.lArmZ, pose.lArmZ, t);
+    current.rArmX = lerp(current.rArmX, pose.rArmX, t);
+    current.rArmY = lerp(current.rArmY, pose.rArmY, t);
+    current.rArmZ = lerp(current.rArmZ, pose.rArmZ, t);
+    current.lLegX = lerp(current.lLegX, pose.lLegX, t);
+    current.lLegY = lerp(current.lLegY, pose.lLegY, t);
+    current.lLegZ = lerp(current.lLegZ, pose.lLegZ, t);
+    current.rLegX = lerp(current.rLegX, pose.rLegX, t);
+    current.rLegY = lerp(current.rLegY, pose.rLegY, t);
+    current.rLegZ = lerp(current.rLegZ, pose.rLegZ, t);
+    current.torsoX = lerp(current.torsoX, pose.torsoX, t);
+    current.posY = lerp(current.posY, pose.posY, t);
 
-    leftArm.rotation.z  = target.lArmZ;
-    rightArm.rotation.z = target.rArmZ;
-    leftLeg.rotation.z  = target.lLegZ;
-    rightLeg.rotation.z = target.rLegZ;
+    leftArm.rotation.set(current.lArmX, current.lArmY, current.lArmZ);
+    rightArm.rotation.set(current.rArmX, current.rArmY, current.rArmZ);
+    leftLeg.rotation.set(current.lLegX, current.lLegY, current.lLegZ);
+    rightLeg.rotation.set(current.rLegX, current.rLegY, current.rLegZ);
+    torso.rotation.x = current.torsoX;
+    group.position.y = current.posY;
 
-    // Idle bob
+    // Side-to-side shuffle logic
     if (state === 'idle' || state === 'ready') {
-      group.position.y = -0.1 + Math.sin(elapsed * 2.5) * 0.04;
-      group.position.x = Math.sin(elapsed * 2) * 1.5;
+      const shuffleDist = state === 'ready' ? 1.8 : 1.2;
+      const shuffleFreq = state === 'ready' ? 3.5 : 2;
+      group.position.x = Math.sin(elapsed * shuffleFreq) * shuffleDist;
+      
+      // Add subtle bobbing while shuffling
+      group.position.y += Math.abs(Math.cos(elapsed * shuffleFreq * 2)) * 0.05;
+      
+      // Look towards center or ball (simplified look-at)
+      group.rotation.y = -group.position.x * 0.1;
     }
   };
 

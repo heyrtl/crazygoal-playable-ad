@@ -101,17 +101,40 @@ export const createStriker = () => {
   rightArmPivot.rotation.x = Math.PI / 6;
 
   let elapsed = 0;
-  const update = (dt: number, state: 'idle' | 'aiming' | 'kicking') => {
+  const update = (dt: number, state: 'idle' | 'aiming' | 'approaching' | 'kicking') => {
     elapsed += dt;
+    
     if (state === 'idle') {
-      const bounce = Math.abs(Math.sin(elapsed * 8)) * 0.1;
+      const bounce = Math.abs(Math.sin(elapsed * 4)) * 0.05;
       group.position.y = bounce;
       
-      const swing = Math.sin(elapsed * 8) * 0.3;
-      leftArmPivot.rotation.x = THREE.MathUtils.lerp(leftArmPivot.rotation.x, swing, dt * 10);
-      rightArmPivot.rotation.x = THREE.MathUtils.lerp(rightArmPivot.rotation.x, -swing, dt * 10);
-      leftLegPivot.rotation.x = THREE.MathUtils.lerp(leftLegPivot.rotation.x, -swing, dt * 10);
-      rightLegPivot.rotation.x = THREE.MathUtils.lerp(rightLegPivot.rotation.x, swing, dt * 10);
+      const swing = Math.sin(elapsed * 4) * 0.2;
+      leftArmPivot.rotation.set(swing, 0, 0.1);
+      rightArmPivot.rotation.set(-swing, 0, -0.1);
+      leftLegPivot.rotation.set(-swing * 0.5, 0, 0);
+      rightLegPivot.rotation.set(swing * 0.5, 0, 0);
+      torso.rotation.x = 0;
+    } else if (state === 'aiming') {
+      // Small weighted breathing
+      group.position.y = Math.sin(elapsed * 2) * 0.02;
+    } else if (state === 'approaching') {
+      // High-speed run cycle
+      const runSpeed = 15;
+      const legSwing = Math.sin(elapsed * runSpeed) * 0.8;
+      const armSwing = Math.sin(elapsed * runSpeed) * 1.2;
+      
+      leftLegPivot.rotation.x = legSwing;
+      rightLegPivot.rotation.x = -legSwing;
+      leftArmPivot.rotation.x = -armSwing;
+      rightArmPivot.rotation.x = armSwing;
+      
+      // Lean forward while running
+      torso.rotation.x = 0.3;
+      group.position.y = Math.abs(Math.cos(elapsed * runSpeed)) * 0.15;
+    } else if (state === 'kicking') {
+      // Kicking animation handled partially in GameCanvas, 
+      // but we add base posture here
+      torso.rotation.x = -0.2; // Lean back on kick
     }
   };
 
