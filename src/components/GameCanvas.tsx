@@ -44,9 +44,9 @@ export const GameCanvas = ({ gameState, setGameState, onGoal, playAudio, isViewa
     const height = containerRef.current.clientHeight;
 
     // Camera
-    const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 100);
-    camera.position.set(0, 4, 8);
-    camera.lookAt(0, 0, -4);
+    const camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 100);
+    camera.position.set(0, 8, 8); // 45 degree top-down view
+    camera.lookAt(0, 0, -2); // Focus on the play area
 
     // Renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -268,12 +268,18 @@ export const GameCanvas = ({ gameState, setGameState, onGoal, playAudio, isViewa
       
       camera.aspect = aspect;
       
-      // Dynamic FOV for tall screens (portrait) to keep striker in frame
+      // Responsive framing based on orientation
       if (aspect < 1) {
-        camera.fov = 60 / aspect; // Increase FOV as screen gets narrower
+        // Portrait: Increase FOV to keep striker (z=3.5) in frame
+        // fov = baseFov / aspect, capped to avoid fish-eye
+        camera.fov = Math.min(50 / aspect, 85);
+        camera.position.set(0, 8 + (1 - aspect) * 2, 8 + (1 - aspect) * 4); // Pull back slightly
       } else {
-        camera.fov = 60;
+        // Landscape: Return to base framing
+        camera.fov = 45;
+        camera.position.set(0, 8, 8);
       }
+      camera.lookAt(0, 0, -2);
       
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
@@ -411,8 +417,10 @@ export const GameCanvas = ({ gameState, setGameState, onGoal, playAudio, isViewa
 
       if (shakeTime > 0) {
         shakeTime -= dt;
-        camera.position.set((Math.random()-0.5)*shakeIntensity, 4+(Math.random()-0.5)*shakeIntensity, 8+(Math.random()-0.5)*shakeIntensity);
-      } else { camera.position.set(0, 4, 8); }
+        const shake = (Math.random() - 0.5) * shakeIntensity;
+        camera.position.x += shake;
+        camera.position.y += shake;
+      }
 
       renderer.render(scene, camera);
       animationFrameId = requestAnimationFrame(animate);

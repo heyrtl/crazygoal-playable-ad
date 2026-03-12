@@ -91,21 +91,21 @@ export const UIOverlay = ({ gameState, onDownload }: UIOverlayProps) => {
 
       {/* Instruction & Hand */}
       {gameState === 'Idle' && (
-        <div className="absolute top-[18%] left-0 w-full flex flex-col items-center pointer-events-none z-20 px-8">
-          <div className="bg-black/60 backdrop-blur-md border-4 border-white/30 rounded-[2.5rem] px-10 py-8 flex flex-col items-center shadow-2xl animate-[fadeIn_0.5s_ease-out]">
-            <h2 className="text-4xl sm:text-5xl text-white mb-8 text-center leading-tight whitespace-nowrap" 
+        <div className="absolute top-[12%] landscape:top-[15%] left-1/2 -translate-x-1/2 w-[90%] max-w-[320px] landscape:max-w-xs flex flex-col items-center pointer-events-none z-20">
+          <div className="bg-black/70 backdrop-blur-lg border-2 border-white/20 rounded-[2rem] px-6 py-5 flex flex-col items-center shadow-2xl animate-[fadeIn_0.5s_ease-out] w-full">
+            <h2 className="text-[clamp(1.5rem,5vw,2.2rem)] text-white mb-4 text-center leading-tight uppercase tracking-wider" 
                 style={{ 
-                  WebkitTextStroke: '1.5px black',
-                  textShadow: '0 4px 0 #000'
+                  WebkitTextStroke: '1px black',
+                  textShadow: '0 2px 0 #000'
                 }}>
-              DRAG AND<br/>RELEASE
+              DRAG AND RELEASE
             </h2>
-            <div className="relative w-full h-20">
+            <div className="relative w-full h-12">
               <img 
                 src={HAND_DATA} 
                 alt="Drag Hand" 
-                className="w-20 h-20 absolute top-0 left-1/2 -translate-x-1/2 animate-[dragDown_1.5s_infinite]"
-                style={{ filter: 'drop-shadow(0 8px 4px rgba(0,0,0,0.6)) grayscale(0.2)' }}
+                className="w-12 h-12 absolute top-0 left-1/2 -translate-x-1/2 animate-[dragDown_1.5s_infinite]"
+                style={{ filter: 'drop-shadow(0 4px 2px rgba(0,0,0,0.6))' }}
               />
             </div>
           </div>
