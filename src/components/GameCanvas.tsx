@@ -149,6 +149,7 @@ export const GameCanvas = ({ gameState, setGameState, onGoal, playAudio, isViewa
     // --- Characters & Ball ---
     const striker = createStriker();
     const goalie = createGoalie();
+    goalie.group.position.set(0, 0, -5.5); // Positioned just in front of goal line
     scene.add(striker.group, goalie.group);
 
     const ball = new THREE.Mesh(

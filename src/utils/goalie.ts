@@ -31,12 +31,12 @@ export const createGoalie = () => {
   // Arms
   const makeArm = (sx: number) => {
     const pivot = new THREE.Group();
-    pivot.position.set(sx * 0.3, 1.25, 0);
-    const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.08, 0.35, 4, 16), mat);
-    arm.position.y = -0.175;
+    pivot.position.set(sx * 0.45, 1.25, 0); // Widened pivot (0.3 -> 0.45)
+    const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.08, 0.5, 4, 16), mat); // Lengthened (0.35 -> 0.5)
+    arm.position.y = -0.25;
     arm.castShadow = true;
     const hand = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), mat);
-    hand.position.y = -0.4;
+    hand.position.y = -0.55;
     pivot.add(arm, hand);
     group.add(pivot);
     return pivot;
@@ -45,12 +45,12 @@ export const createGoalie = () => {
   // Legs
   const makeLeg = (sx: number) => {
     const pivot = new THREE.Group();
-    pivot.position.set(sx * 0.15, 0.7, 0);
-    const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.4, 4, 16), mat);
-    leg.position.y = -0.2;
+    pivot.position.set(sx * 0.25, 0.7, 0); // Widened pivot (0.15 -> 0.25)
+    const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.6, 4, 16), mat); // Lengthened (0.4 -> 0.6)
+    leg.position.y = -0.3;
     leg.castShadow = true;
     const foot = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.15, 4, 16), mat);
-    foot.position.set(0, -0.45, 0.05);
+    foot.position.set(0, -0.65, 0.05);
     foot.rotation.x = Math.PI / 2;
     foot.castShadow = true;
     pivot.add(leg, foot);
@@ -81,19 +81,18 @@ export const createGoalie = () => {
 
   const POSES: Record<GoalieState, any> = {
     idle: {
-      lArmX: 0, lArmY: 0, lArmZ: 0.3,
-      rArmX: 0, rArmY: 0, rArmZ: -0.3,
-      lLegX: 0, lLegY: 0, lLegZ: 0.1,
-      rLegX: 0, rLegY: 0, rLegZ: -0.1,
+      lArmX: 0, lArmY: 0, lArmZ: 0.6, // Wider arms in idle
+      rArmX: 0, rArmY: 0, rArmZ: -0.6,
+      lLegX: 0, lLegY: 0, lLegZ: 0.25, // Separated legs in idle
+      rLegX: 0, rLegY: 0, rLegZ: -0.25,
       torsoX: 0, posY: -0.1
     },
     ready: {
-      lArmX: -0.1, lArmY: 0, lArmZ: 1.5, // Horizontal spread (Reference match)
+      lArmX: -0.1, lArmY: 0, lArmZ: 1.5,
       rArmX: -0.1, rArmY: 0, rArmZ: -1.5,
-      lLegX: 0.8, lLegY: -0.2, lLegZ: 0.4, // Deep, wide squat
-      rLegX: 0.8, rLegY: 0.2, rLegZ: -0.4,
-      torsoX: 0.25, // Professional forward lean
-      posY: -0.4    // Balanced center of gravity
+      lLegX: 0.7, lLegY: -0.3, lLegZ: 0.5, // Calibrated wider squat
+      rLegX: 0.7, rLegY: 0.3, rLegZ: -0.5,
+      torsoX: 0.2, posY: -0.4
     },
     coverLeft: {
       lArmX: -0.1, lArmY: 0, lArmZ: 1.6,
