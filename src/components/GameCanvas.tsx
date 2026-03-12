@@ -545,13 +545,20 @@ export const GameCanvas = ({ gameState, setGameState, onGoal, playAudio, isViewa
         ball.rotation.x -= ballVelocity.z * dt;
         ball.rotation.z += ballVelocity.x * dt;
 
+        // Goalie AI
         if (!goalieDiving && ball.position.z < -1) {
           goalieDiving = true;
         }
-        if (goalieDiving) {
-          const targetX = ball.position.x > 0 ? 2 : -2;
-          goalie.group.position.x = THREE.MathUtils.lerp(goalie.group.position.x, targetX, dt * 5);
-          goalie.group.scale.x = targetX > 0 ? 1 : -1;
+        if (goalieDiving && goalie.group.position.x < 2) {
+           goalie.group.position.x += 5 * dt;
+           goalie.group.position.y = THREE.MathUtils.lerp(goalie.group.position.y, 0.5, dt * 5);
+           goalie.group.rotation.z = THREE.MathUtils.lerp(goalie.group.rotation.z, -Math.PI / 2, dt * 10);
+           
+           // Stretch arms out
+           goalie.leftArm.rotation.z = THREE.MathUtils.lerp(goalie.leftArm.rotation.z, Math.PI / 2, dt * 10);
+           goalie.rightArm.rotation.z = THREE.MathUtils.lerp(goalie.rightArm.rotation.z, -Math.PI / 2, dt * 10);
+           goalie.leftLeg.rotation.z = THREE.MathUtils.lerp(goalie.leftLeg.rotation.z, 0, dt * 10);
+           goalie.rightLeg.rotation.z = THREE.MathUtils.lerp(goalie.rightLeg.rotation.z, 0, dt * 10);
         }
 
         // Goal collision
@@ -578,15 +585,6 @@ export const GameCanvas = ({ gameState, setGameState, onGoal, playAudio, isViewa
           }
         }
       }
-
-      // Goalie Animation Update
-      let goalieState: 'idle' | 'ready' | 'diving' = 'idle';
-      if (gameStateRef.current === 'Aiming') {
-        goalieState = 'ready';
-      } else if (goalieDiving) {
-        goalieState = 'diving';
-      }
-      goalie.update(dt, goalieState);
 
       // Particles
       for (let i = particles.length - 1; i >= 0; i--) {
