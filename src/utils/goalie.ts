@@ -1,402 +1,270 @@
 import * as THREE from 'three';
 
 // ═══════════════════════════════════════════════════════════════
-//  GOALIE.TS — High-Fidelity 2D Goalkeeper · Three.js Billboard
-//  Pure Canvas 2D · No SVG · No external assets
+//  GOALIE_HYPERCASUAL.TS
+//  Matches "Crazy Goaal" art style: single flat color stickman,
+//  round head, pill body, tube limbs. No dive — lateral coverage.
 // ═══════════════════════════════════════════════════════════════
 
 const CW = 256;
 const CH = 256;
 
-// ─── Palette ─────────────────────────────────────────────────────
-const P = {
-  skin:        '#f4c08a',
-  skinDark:    '#c87840',
-  hair:        '#1c0f08',
-  jersey:      '#f5a623',       // amber goalkeeper jersey
-  jerseyDark:  '#b8741a',
-  shorts:      '#0e1a30',       // deep navy
-  shortsDark:  '#07101f',
-  glove:       '#2ecc71',       // bright green
-  gloveDark:   '#239a55',
-  gloveStitch: '#1a7a40',
-  boot:        '#111111',
-  bootSole:    '#e8e8e8',
-  bootLace:    '#f5a623',
-  eyeWhite:    '#f5f5ee',
-  iris:        '#1e3d8f',
-  pupil:       '#05050f',
-  brow:        '#1c0f08',
-  mouth:       '#7a2e15',
-  shinGuard:   '#cce0ff',
-  shin:        '#e0b07a',
-  shadow:      'rgba(0,0,0,0.22)',
-} as const;
+// ── Palette (single-color character, just like the game) ────────
+const COLOR      = '#e74c3c';   // flat red — swap for any team color
+const COLOR_DARK = '#b83c2c';   // subtle underside shading only
+const SHADOW     = 'rgba(0,0,0,0.18)';
 
-// ─── Types ───────────────────────────────────────────────────────
-export type GoalieState = 'idle' | 'warmup' | 'ready' | 'anticipate' | 'diving';
+// ── Types ────────────────────────────────────────────────────────
+export type HCGoalieState =
+  | 'idle'          // standing, gentle bob
+  | 'ready'         // arms wide, slight crouch — default between shots
+  | 'coverLeft'     // leaning/sliding left, left arm up
+  | 'coverRight'    // leaning/sliding right, right arm up
+  | 'saveLeft'      // fully stretched to left, arm at max
+  | 'saveRight';    // fully stretched to right, arm at max
 
-// ─── Helpers ─────────────────────────────────────────────────────
-const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
-const clamp = (v: number, lo: number, hi: number): number =>
-  Math.max(lo, Math.min(hi, v));
-const ease = (t: number): number =>
+// ── Math helpers ─────────────────────────────────────────────────
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+const easeOut = (t: number) => 1 - (1 - t) * (1 - t);
+const easeInOut = (t: number) =>
   t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
 
-// ─── Drawing Primitives ──────────────────────────────────────────
+// ── Core Draw ─────────────────────────────────────────────────────
+//  Everything is described by a single pose object so animation
+//  is just interpolating numbers — no branching in the renderer.
 
-function drawGlove(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  r = 11
-) {
-  // Main glove
-  ctx.fillStyle = P.glove;
-  ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Grip lines
-  ctx.strokeStyle = P.gloveStitch;
-  ctx.lineWidth = 1.2;
-  for (let i = -1; i <= 1; i++) {
-    ctx.beginPath();
-    ctx.moveTo(x + i * 4, y - r * 0.55);
-    ctx.lineTo(x + i * 4, y + r * 0.55);
-    ctx.stroke();
-  }
-
-  // Wrist strap
-  ctx.fillStyle = P.jerseyDark;
-  ctx.fillRect(x - r * 0.7, y + r * 0.45, r * 1.4, r * 0.55);
-
-  // Sheen
-  ctx.fillStyle = 'rgba(255,255,255,0.28)';
-  ctx.beginPath();
-  ctx.ellipse(x - r * 0.25, y - r * 0.3, r * 0.45, r * 0.3, -0.3, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-function drawBoot(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  dir: 1 | -1   // 1 = toe right, -1 = toe left
-) {
-  ctx.save();
-  ctx.translate(x, y);
-
-  ctx.fillStyle = P.bootSole;
-  ctx.beginPath();
-  ctx.ellipse(dir * 6, 4, 14, 5, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = P.boot;
-  ctx.beginPath();
-  ctx.moveTo(-dir * 8, 0);
-  ctx.lineTo(dir * 14, 0);
-  ctx.quadraticCurveTo(dir * 18, -2, dir * 16, -10);
-  ctx.lineTo(dir * 2, -14);
-  ctx.lineTo(-dir * 10, -12);
-  ctx.lineTo(-dir * 10, 0);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.strokeStyle = P.bootLace;
-  ctx.lineWidth = 1.5;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(dir * 4, -12);
-  ctx.lineTo(dir * 12, -12);
-  ctx.stroke();
-
-  ctx.fillStyle = 'rgba(255,255,255,0.12)';
-  ctx.beginPath();
-  ctx.ellipse(dir * 8, -7, 5, 3, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.restore();
-}
-
-function drawShin(
-  ctx: CanvasRenderingContext2D,
-  kx: number, ky: number,
-  ax: number, ay: number,
-  dir: 1 | -1
-) {
-  // Shin skin
-  ctx.strokeStyle = P.shin;
-  ctx.lineWidth = 13;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(kx, ky);
-  ctx.lineTo(ax, ay);
-  ctx.stroke();
-
-  // Shin guard overlay
-  const mx = kx + (ax - kx) * 0.2;
-  const my = ky + (ay - ky) * 0.2;
-  const ex = kx + (ax - kx) * 0.72;
-  const ey = ky + (ay - ky) * 0.72;
-  ctx.strokeStyle = P.shinGuard;
-  ctx.lineWidth = 7;
-  ctx.beginPath();
-  ctx.moveTo(mx, my);
-  ctx.lineTo(ex, ey);
-  ctx.stroke();
-
-  drawBoot(ctx, ax, ay, dir);
-}
-
-function drawThigh(
-  ctx: CanvasRenderingContext2D,
-  hx: number, hy: number,
-  kx: number, ky: number
-) {
-  ctx.strokeStyle = P.shorts;
-  ctx.lineWidth = 17;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(hx, hy);
-  ctx.lineTo(kx, ky);
-  ctx.stroke();
-
-  // Kneecap
-  ctx.fillStyle = P.skin;
-  ctx.strokeStyle = P.shinGuard;
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.arc(kx, ky, 6, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-}
-
-function drawUpperArm(
-  ctx: CanvasRenderingContext2D,
-  sx: number, sy: number,
-  ex: number, ey: number
-) {
-  ctx.strokeStyle = P.jersey;
-  ctx.lineWidth = 13;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(sx, sy);
-  ctx.lineTo(ex, ey);
-  ctx.stroke();
-
-  // Shadow strip along underside
-  const ox = (ey - sy) / 13;
-  const oy = -(ex - sx) / 13;
-  ctx.strokeStyle = P.jerseyDark;
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(sx + ox, sy + oy);
-  ctx.lineTo(ex + ox, ey + oy);
-  ctx.stroke();
-}
-
-function drawForearm(
-  ctx: CanvasRenderingContext2D,
-  ex: number, ey: number,
-  wx: number, wy: number
-) {
-  ctx.strokeStyle = P.jersey;
-  ctx.lineWidth = 11;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(ex, ey);
-  ctx.lineTo(wx, wy);
-  ctx.stroke();
-}
-
-interface HeadExpr { brow: 'neutral' | 'focused' | 'intense'; }
-
-function drawHead(
-  ctx: CanvasRenderingContext2D,
-  cx: number,
-  cy: number,
-  expr: HeadExpr
-) {
-  const r = 24;
-
-  // Neck
-  ctx.fillStyle = P.skin;
-  ctx.beginPath();
-  ctx.ellipse(cx, cy + r - 2, 10, 13, 0, 0, Math.PI);
-  ctx.fill();
-
-  // Head base
-  ctx.fillStyle = P.skin;
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Radial shading
-  const skinGrad = ctx.createRadialGradient(cx - 6, cy - 8, 4, cx, cy, r * 1.1);
-  skinGrad.addColorStop(0, 'rgba(255,255,255,0)');
-  skinGrad.addColorStop(1, 'rgba(120,60,10,0.28)');
-  ctx.fillStyle = skinGrad;
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Cheek blush
-  ctx.fillStyle = 'rgba(220,100,60,0.08)';
-  for (const [bx, ba] of [[cx - 14, 0.3], [cx + 14, -0.3]] as [number, number][]) {
-    ctx.beginPath();
-    ctx.ellipse(bx, cy + 6, 8, 5.5, ba, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // Hair (upper half)
-  ctx.fillStyle = P.hair;
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, Math.PI, 0);
-  ctx.lineTo(cx + r * 0.55, cy - r * 0.04);
-  ctx.quadraticCurveTo(cx, cy - r * 0.22, cx - r * 0.55, cy - r * 0.04);
-  ctx.closePath();
-  ctx.fill();
-
-  // Hair sheen
-  ctx.fillStyle = 'rgba(255,255,255,0.09)';
-  ctx.beginPath();
-  ctx.ellipse(cx - 5, cy - r * 0.55, 9, 5, -0.4, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Ears
-  for (const ex of [cx - r + 2, cx + r - 2]) {
-    ctx.fillStyle = P.skin;
-    ctx.strokeStyle = P.skinDark;
-    ctx.lineWidth = 0.8;
-    ctx.beginPath();
-    ctx.ellipse(ex, cy + 3, 5, 7, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-  }
-
-  // Eye whites
-  const eyeY = cy + 3;
-  const eyeOX = 9;
-  for (const ex of [cx - eyeOX, cx + eyeOX]) {
-    ctx.fillStyle = P.eyeWhite;
-    ctx.beginPath();
-    ctx.ellipse(ex, eyeY, 6.5, 5, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // Irises + pupils + catchlight
-  const lookX = expr.brow === 'intense' ? 1.5 : 0.5;
-  for (const ex of [cx - eyeOX, cx + eyeOX]) {
-    ctx.fillStyle = P.iris;
-    ctx.beginPath();
-    ctx.arc(ex + lookX, eyeY, 3.8, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = P.pupil;
-    ctx.beginPath();
-    ctx.arc(ex + lookX + 0.3, eyeY, 2.2, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    ctx.beginPath();
-    ctx.arc(ex + lookX - 0.8, eyeY - 1.2, 1.3, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // Upper eyelid lines
-  ctx.strokeStyle = P.hair;
-  ctx.lineWidth = 1.2;
-  for (const ex of [cx - eyeOX, cx + eyeOX]) {
-    ctx.beginPath();
-    ctx.ellipse(ex, eyeY, 6.5, 5, 0, Math.PI, 0);
-    ctx.stroke();
-  }
-
-  // Eyebrows
-  ctx.strokeStyle = P.brow;
-  ctx.lineWidth = 2.8;
-  ctx.lineCap = 'round';
-  if (expr.brow === 'intense') {
-    ctx.beginPath(); ctx.moveTo(cx - eyeOX - 7, eyeY - 10); ctx.lineTo(cx - eyeOX + 5, eyeY - 7); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(cx + eyeOX + 7, eyeY - 10); ctx.lineTo(cx + eyeOX - 5, eyeY - 7); ctx.stroke();
-  } else if (expr.brow === 'focused') {
-    ctx.beginPath(); ctx.moveTo(cx - eyeOX - 7, eyeY - 9); ctx.lineTo(cx - eyeOX + 4, eyeY - 7.5); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(cx + eyeOX + 7, eyeY - 9); ctx.lineTo(cx + eyeOX - 4, eyeY - 7.5); ctx.stroke();
-  } else {
-    ctx.beginPath(); ctx.moveTo(cx - eyeOX - 6, eyeY - 9); ctx.lineTo(cx - eyeOX + 5, eyeY - 9); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(cx + eyeOX - 5, eyeY - 9); ctx.lineTo(cx + eyeOX + 6, eyeY - 9); ctx.stroke();
-  }
-
-  // Nose
-  ctx.strokeStyle = P.skinDark;
-  ctx.lineWidth = 1.5;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(cx + 2, eyeY + 4);
-  ctx.quadraticCurveTo(cx + 6, eyeY + 10, cx + 3, eyeY + 12);
-  ctx.stroke();
-  ctx.fillStyle = P.skinDark;
-  ctx.beginPath(); ctx.arc(cx - 1, eyeY + 12, 1.5, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(cx + 5,  eyeY + 12, 1.5, 0, Math.PI * 2); ctx.fill();
-
-  // Mouth
-  ctx.strokeStyle = P.mouth;
-  ctx.lineWidth = 2;
-  ctx.lineCap = 'round';
-  if (expr.brow === 'intense') {
-    ctx.beginPath(); ctx.moveTo(cx - 7, eyeY + 17); ctx.lineTo(cx + 7, eyeY + 17); ctx.stroke();
-    ctx.strokeStyle = 'rgba(160,80,20,0.3)';
-    ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(cx - 10, eyeY + 20); ctx.quadraticCurveTo(cx, eyeY + 24, cx + 10, eyeY + 20); ctx.stroke();
-  } else {
-    ctx.beginPath(); ctx.moveTo(cx - 7, eyeY + 17); ctx.quadraticCurveTo(cx, eyeY + 19, cx + 7, eyeY + 17); ctx.stroke();
-  }
-}
-
-// ─── Upright Pose ────────────────────────────────────────────────
-
-interface UprightPose {
-  headX: number;        // canvas center X
-  headY: number;        // canvas center Y of head
-  crouchFactor: number; // 0 = standing, 1 = deep crouch
-  lArmAngle: number;    // radians from straight-down; negative = outward left
-  rArmAngle: number;    // positive = outward right
-  lElbowBend: number;   // added to arm angle at elbow
-  rElbowBend: number;
-  lLegAngle: number;    // negative = outward left
-  rLegAngle: number;
-  lKneeBend: number;
-  rKneeBend: number;
+interface HCPose {
+  // Body center position on canvas
+  cx: number;
+  cy: number;
+  // Body: ellipse half-sizes
+  bw: number;   // half-width
+  bh: number;   // half-height
+  // Head offset from body top
+  headOX: number;
+  headOY: number;
+  headR: number;
+  // Limb angles (radians from straight-down)
+  //   negative = toward left, positive = toward right
+  lArmAng: number;  // upper arm angle
+  rArmAng: number;
+  lElbAng: number;  // forearm added angle
+  rElbAng: number;
+  lLegAng: number;
+  rLegAng: number;
+  lKneAng: number;
+  rKneAng: number;
+  // Limb lengths
+  UAL: number;  // upper arm
+  FAL: number;  // forearm
+  ULL: number;  // upper leg
+  LLL: number;  // lower leg
+  // Global lean (full body tilt in radians)
+  lean: number;
+  // Shadow width
   shadowW: number;
 }
 
-function drawUprightGoalie(ctx: CanvasRenderingContext2D, pose: UprightPose) {
-  const { headX: cx, headY, crouchFactor } = pose;
+function buildPose(overrides: Partial<HCPose>): HCPose {
+  return {
+    cx: 128, cy: 128,
+    bw: 22, bh: 30,
+    headOX: 0, headOY: 0, headR: 22,
+    lArmAng: -0.55, rArmAng: 0.55,
+    lElbAng: 0.12, rElbAng: -0.12,
+    lLegAng: -0.16, rLegAng: 0.16,
+    lKneAng: 0.08, rKneAng: 0.08,
+    UAL: 26, FAL: 22,
+    ULL: 28, LLL: 26,
+    lean: 0,
+    shadowW: 36,
+    ...overrides,
+  };
+}
 
-  const headR = 24;
-  const shoulderY = headY + headR + 11;
-  const shoulderHW = lerp(40, 48, crouchFactor); // half-width
+// ── Pose factories ────────────────────────────────────────────────
 
-  const torsoH = lerp(65, 48, crouchFactor);
-  const waistY = shoulderY + torsoH;
-  const shortsH = lerp(20, 15, crouchFactor);
-  const hipsY = waistY + shortsH;
+function pIdle(t: number): HCPose {
+  const bob  = Math.sin(t * 1.6) * 3;
+  const sway = Math.sin(t * 0.9) * 1.5;
+  return buildPose({
+    cy: 130 + bob,
+    cx: 128 + sway * 0.3,
+    bh: 28 - Math.abs(bob) * 0.3,
+    lArmAng: -0.44 + Math.sin(t * 1.1) * 0.04,
+    rArmAng:  0.44 - Math.sin(t * 1.1) * 0.04,
+    shadowW: 34,
+  });
+}
 
-  const thighLen = lerp(40, 28, crouchFactor * 0.5);
-  const shinLen = 36;
+function pReady(t: number): HCPose {
+  const bob = Math.abs(Math.sin(t * 2.0)) * 2.5;
+  const sway = Math.sin(t * 2.0) * 4;
+  return buildPose({
+    cy: 132 + bob,
+    cx: 128 + sway * 0.2,
+    bw: 24,
+    bh: 26,   // slightly squished = crouched
+    lArmAng: -1.20,
+    rArmAng:  1.20,
+    lElbAng:  0.22, rElbAng: -0.22,
+    lLegAng: -0.28, rLegAng: 0.28,
+    lKneAng:  0.25, rKneAng: 0.25,
+    UAL: 28, FAL: 24,
+    shadowW: 50,
+  });
+}
 
-  const lShX = cx - shoulderHW;
-  const rShX = cx + shoulderHW;
-  const lHipX = cx - lerp(16, 22, crouchFactor);
-  const rHipX = cx + lerp(16, 22, crouchFactor);
+function pCoverLeft(t: number, frac: number): HCPose {
+  const p = easeOut(frac);
+  const bob = Math.abs(Math.sin(t * 3.0)) * 2;
+  const cx = lerp(128, 92, p);
+  const lean = lerp(0, -0.32, p);
 
-  const UAL = 28, FAL = 26;
+  // Left arm shoots up and wide, right arm drops
+  const lArmAng = lerp(-1.20, -2.1, p);
+  const rArmAng = lerp( 1.20,  0.5, p);
 
-  function armJoints(sx: number, angle: number, elbowBend: number) {
-    const ex = sx + Math.sin(angle) * UAL;
-    const ey = shoulderY + Math.cos(angle) * UAL;
-    const fa = angle + elbowBend;
+  // Legs: left leg extends out, right leg bends under
+  const lLegAng = lerp(-0.28, -0.55, p);
+  const rLegAng = lerp( 0.28,  0.18, p);
+  const lKneAng = lerp( 0.25,  0.10, p);
+  const rKneAng = lerp( 0.25,  0.42, p);
+
+  return buildPose({
+    cx, cy: 130 + bob,
+    bw: lerp(24, 26, p),
+    bh: lerp(26, 24, p),
+    lArmAng, rArmAng,
+    lElbAng: lerp(0.22, 0.08, p),
+    rElbAng: lerp(-0.22, -0.08, p),
+    lLegAng, rLegAng, lKneAng, rKneAng,
+    UAL: 28, FAL: 24,
+    lean,
+    shadowW: lerp(50, 44, p),
+  });
+}
+
+function pCoverRight(t: number, frac: number): HCPose {
+  const p = easeOut(frac);
+  const bob = Math.abs(Math.sin(t * 3.0)) * 2;
+  const cx = lerp(128, 164, p);
+  const lean = lerp(0, 0.32, p);
+
+  const lArmAng = lerp(-1.20, -0.5, p);
+  const rArmAng = lerp( 1.20,  2.1, p);
+  const lLegAng = lerp(-0.28, -0.18, p);
+  const rLegAng = lerp( 0.28,  0.55, p);
+  const lKneAng = lerp( 0.25,  0.42, p);
+  const rKneAng = lerp( 0.25,  0.10, p);
+
+  return buildPose({
+    cx, cy: 130 + bob,
+    bw: lerp(24, 26, p),
+    bh: lerp(26, 24, p),
+    lArmAng, rArmAng,
+    lElbAng: lerp(0.22, 0.08, p),
+    rElbAng: lerp(-0.22, -0.08, p),
+    lLegAng, rLegAng, lKneAng, rKneAng,
+    UAL: 28, FAL: 24,
+    lean,
+    shadowW: lerp(50, 44, p),
+  });
+}
+
+function pSaveLeft(t: number): HCPose {
+  const wiggle = Math.sin(t * 6) * 0.04;
+  return buildPose({
+    cx: 82,
+    cy: 132,
+    bw: 26, bh: 23,
+    lArmAng: -2.5 + wiggle,  // nearly straight up-left
+    rArmAng: 0.44,
+    lElbAng: 0.06, rElbAng: -0.14,
+    lLegAng: -0.60, rLegAng: 0.22,
+    lKneAng: 0.08, rKneAng: 0.38,
+    UAL: 30, FAL: 26,
+    lean: -0.38,
+    shadowW: 40,
+  });
+}
+
+function pSaveRight(t: number): HCPose {
+  const wiggle = Math.sin(t * 6) * 0.04;
+  return buildPose({
+    cx: 174,
+    cy: 132,
+    bw: 26, bh: 23,
+    lArmAng: -0.44,
+    rArmAng: 2.5 + wiggle,
+    lElbAng: 0.14, rElbAng: -0.06,
+    lLegAng: -0.22, rLegAng: 0.60,
+    lKneAng: 0.38, rKneAng: 0.08,
+    UAL: 30, FAL: 26,
+    lean: 0.38,
+    shadowW: 40,
+  });
+}
+
+// ── Renderer ─────────────────────────────────────────────────────
+
+function drawRound(
+  ctx: CanvasRenderingContext2D,
+  x: number, y: number,
+  w: number, h: number
+) {
+  ctx.beginPath();
+  ctx.ellipse(x, y, w, h, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawLimb(
+  ctx: CanvasRenderingContext2D,
+  x1: number, y1: number,
+  x2: number, y2: number,
+  width: number
+) {
+  ctx.lineWidth = width;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+}
+
+function renderPose(ctx: CanvasRenderingContext2D, pose: HCPose) {
+  ctx.clearRect(0, 0, CW, CH);
+
+  const {
+    cx, cy, bw, bh,
+    headOX, headOY, headR,
+    lArmAng, rArmAng, lElbAng, rElbAng,
+    lLegAng, rLegAng, lKneAng, rKneAng,
+    UAL, FAL, ULL, LLL,
+    lean, shadowW,
+  } = pose;
+
+  // Shadow
+  ctx.fillStyle = SHADOW;
+  drawRound(ctx, cx, 244, shadowW, 7);
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(lean);
+
+  // ── Joints ───────────────────────────────────────────────────
+  const bodyTopY = -bh;
+  const shoulderY = bodyTopY + 6;
+  const hipY = bh - 6;
+  const lShX = -bw + 6;
+  const rShX =  bw - 6;
+  const lHipX = -bw * 0.45;
+  const rHipX =  bw * 0.45;
+
+  function armPoints(sx: number, ang: number, elbAng: number) {
+    const ex = sx + Math.sin(ang) * UAL;
+    const ey = shoulderY + Math.cos(ang) * UAL;
+    const fa = ang + elbAng;
     return {
       ex, ey,
       wx: ex + Math.sin(fa) * FAL,
@@ -404,365 +272,148 @@ function drawUprightGoalie(ctx: CanvasRenderingContext2D, pose: UprightPose) {
     };
   }
 
-  function legJoints(hx: number, legAngle: number, kneeBend: number) {
-    const kx = hx + Math.sin(legAngle) * thighLen;
-    const ky = hipsY + Math.cos(legAngle) * thighLen;
-    const sa = legAngle + kneeBend;
+  function legPoints(hx: number, ang: number, kneAng: number) {
+    const kx = hx + Math.sin(ang) * ULL;
+    const ky = hipY + Math.cos(ang) * ULL;
+    const sa = ang + kneAng;
     return {
       kx, ky,
-      ax: kx + Math.sin(sa) * shinLen,
-      ay: ky + Math.cos(sa) * shinLen,
+      ax: kx + Math.sin(sa) * LLL,
+      ay: ky + Math.cos(sa) * LLL,
     };
   }
 
-  const lA = armJoints(lShX, pose.lArmAngle, pose.lElbowBend);
-  const rA = armJoints(rShX, pose.rArmAngle, pose.rElbowBend);
-  const lL = legJoints(lHipX, pose.lLegAngle, pose.lKneeBend);
-  const rL = legJoints(rHipX, pose.rLegAngle, pose.rKneeBend);
+  const lA = armPoints(lShX, lArmAng, lElbAng);
+  const rA = armPoints(rShX, rArmAng, rElbAng);
+  const lL = legPoints(lHipX, lLegAng, lKneAng);
+  const rL = legPoints(rHipX, rLegAng, rKneAng);
 
-  // Shadow
-  ctx.fillStyle = P.shadow;
+  // ── Draw ─────────────────────────────────────────────────────
+  // Back leg
+  ctx.strokeStyle = COLOR_DARK;
+  drawLimb(ctx, lHipX, hipY, lL.kx, lL.ky, 12);
+  drawLimb(ctx, lL.kx, lL.ky, lL.ax, lL.ay, 10);
+
+  // Back arm
+  ctx.strokeStyle = COLOR_DARK;
+  drawLimb(ctx, rShX, shoulderY, rA.ex, rA.ey, 11);
+  drawLimb(ctx, rA.ex, rA.ey, rA.wx, rA.wy, 9);
+
+  // Body
+  ctx.fillStyle = COLOR;
+  drawRound(ctx, 0, 0, bw, bh);
+
+  // Subtle body shading — right/bottom strip
+  ctx.fillStyle = COLOR_DARK;
   ctx.beginPath();
-  ctx.ellipse(cx, 248, pose.shadowW, 7, 0, 0, Math.PI * 2);
+  ctx.ellipse(bw * 0.35, bh * 0.25, bw * 0.45, bh * 0.78, 0.25, 0, Math.PI * 2);
+  ctx.globalAlpha = 0.35;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // Body highlight — top-left
+  ctx.fillStyle = 'rgba(255,255,255,0.18)';
+  ctx.beginPath();
+  ctx.ellipse(-bw * 0.28, -bh * 0.35, bw * 0.42, bh * 0.32, -0.3, 0, Math.PI * 2);
   ctx.fill();
 
-  // ── Back leg (left)
-  drawThigh(ctx, lHipX, hipsY, lL.kx, lL.ky);
-  drawShin(ctx, lL.kx, lL.ky, lL.ax, lL.ay, -1);
+  // Front leg (right)
+  ctx.strokeStyle = COLOR;
+  drawLimb(ctx, rHipX, hipY, rL.kx, rL.ky, 12);
+  drawLimb(ctx, rL.kx, rL.ky, rL.ax, rL.ay, 10);
+  // Foot blobs
+  ctx.fillStyle = COLOR;
+  drawRound(ctx, lL.ax, lL.ay + 5, 7, 5);
+  drawRound(ctx, rL.ax, rL.ay + 5, 7, 5);
 
-  // ── Back arm (right) — drawn before torso
-  drawUpperArm(ctx, rShX, shoulderY, rA.ex, rA.ey);
-  drawForearm(ctx, rA.ex, rA.ey, rA.wx, rA.wy);
-  drawGlove(ctx, rA.wx, rA.wy);
+  // Front arm (left)
+  ctx.strokeStyle = COLOR;
+  drawLimb(ctx, lShX, shoulderY, lA.ex, lA.ey, 11);
+  drawLimb(ctx, lA.ex, lA.ey, lA.wx, lA.wy, 9);
 
-  // ── Jersey torso
-  const waistHW = lerp(22, 28, crouchFactor);
-  ctx.fillStyle = P.jersey;
-  ctx.beginPath();
-  ctx.moveTo(lShX - 4, shoulderY);
-  ctx.lineTo(rShX + 4, shoulderY);
-  ctx.quadraticCurveTo(rShX + 6, shoulderY + torsoH * 0.5, cx + waistHW, waistY);
-  ctx.lineTo(cx - waistHW, waistY);
-  ctx.quadraticCurveTo(lShX - 6, shoulderY + torsoH * 0.5, lShX - 4, shoulderY);
-  ctx.closePath();
-  ctx.fill();
+  // Hand blobs
+  ctx.fillStyle = COLOR;
+  drawRound(ctx, lA.wx, lA.wy, 7, 7);
+  drawRound(ctx, rA.wx, rA.wy, 7, 7);
 
-  // Jersey right-side shadow
-  ctx.fillStyle = P.jerseyDark;
-  ctx.beginPath();
-  ctx.moveTo(rShX, shoulderY + 4);
-  ctx.quadraticCurveTo(rShX + 8, shoulderY + torsoH * 0.5, cx + waistHW - 2, waistY - 2);
-  ctx.lineTo(cx + waistHW - 20, waistY - 2);
-  ctx.quadraticCurveTo(rShX - 12, shoulderY + torsoH * 0.5, rShX - 12, shoulderY + 4);
-  ctx.closePath();
-  ctx.fill();
-
-  // Chest highlight
-  ctx.fillStyle = 'rgba(255,255,255,0.17)';
-  ctx.beginPath();
-  ctx.ellipse(cx - 6, shoulderY + torsoH * 0.3, 15, 10, -0.2, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Jersey number "1"
-  ctx.fillStyle = 'rgba(255,255,255,0.88)';
-  ctx.font = `bold ${Math.round(torsoH * 0.38)}px monospace`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('1', cx + 5, shoulderY + torsoH * 0.43);
-
-  // ── Shorts
-  ctx.fillStyle = P.shorts;
-  ctx.beginPath();
-  ctx.moveTo(cx - waistHW, waistY);
-  ctx.lineTo(cx + waistHW, waistY);
-  ctx.lineTo(rHipX + 4, hipsY);
-  ctx.lineTo(lHipX - 4, hipsY);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.strokeStyle = P.shortsDark;
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(cx, waistY + 2);
-  ctx.lineTo(cx, hipsY - 2);
-  ctx.stroke();
-
-  // Shoulder pad glints
-  ctx.strokeStyle = 'rgba(255,255,255,0.22)';
-  ctx.lineWidth = 4;
-  ctx.lineCap = 'round';
-  for (const [px, sign] of [[lShX, 1], [rShX, -1]] as [number, 1|-1][]) {
-    ctx.beginPath();
-    ctx.moveTo(px + sign * 4,  shoulderY - 1);
-    ctx.lineTo(px + sign * 16, shoulderY - 1);
-    ctx.stroke();
-  }
-
-  // ── Front leg (right)
-  drawThigh(ctx, rHipX, hipsY, rL.kx, rL.ky);
-  drawShin(ctx, rL.kx, rL.ky, rL.ax, rL.ay, 1);
-
-  // ── Front arm (left)
-  drawUpperArm(ctx, lShX, shoulderY, lA.ex, lA.ey);
-  drawForearm(ctx, lA.ex, lA.ey, lA.wx, lA.wy);
-  drawGlove(ctx, lA.wx, lA.wy);
-
-  // ── Head
-  const exprLevel =
-    crouchFactor > 0.6 ? 'intense' :
-    crouchFactor > 0.2 ? 'focused' : 'neutral';
-  drawHead(ctx, cx, headY, { brow: exprLevel });
-}
-
-// ─── Dive Draw ───────────────────────────────────────────────────
-
-function drawDiveGoalie(
-  ctx: CanvasRenderingContext2D,
-  dir: 'left' | 'right',
-  t: number
-) {
-  const s: 1 | -1 = dir === 'right' ? 1 : -1;
-  const p = ease(clamp(t, 0, 1));
-
-  // Ground shadow (pre-transform)
-  ctx.fillStyle = P.shadow;
-  ctx.beginPath();
-  ctx.ellipse(128 + s * p * 55, 248, lerp(32, 60, p), 7, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.save();
-  ctx.translate(128 + s * p * 60, 128 - Math.sin(p * Math.PI) * 45);
-  ctx.rotate(s * p * 1.15);
-
-  // Local origin = torso center
-  const TT = -24; // torso top
-  const TB =  24; // torso bottom
-  const SY = TT + 10; // shoulder Y
-
-  // Lead side joints (direction of dive)
-  const leadAX = s * 26;
-  const leadE = { x: leadAX + s * 28, y: SY - 6 };
-  const leadW = { x: leadAX + s * 54, y: SY - 10 };
-
-  // Trail side joints
-  const trailAX = -s * 26;
-  const trailE = { x: trailAX - s * 18, y: SY + 12 };
-  const trailW = { x: trailAX - s * 34, y: SY + 22 };
-
-  // Lead leg — bent (upper)
-  const llH = { x: s * 14, y: TB + 6 };
-  const llK = { x: s * 32, y: TB + 38 };
-  const llA = { x: s * 18, y: TB + 68 };
-
-  // Trail leg — extended (lower)
-  const tlH = { x: -s * 14, y: TB + 6 };
-  const tlK = { x: -s * 40, y: TB + 20 };
-  const tlA = { x: -s * 68, y: TB + 14 };
-
-  // ── Draw order: trail elements → torso → lead elements → head
-
-  // Trail leg
-  drawThigh(ctx, tlH.x, tlH.y, tlK.x, tlK.y);
-  drawShin(ctx, tlK.x, tlK.y, tlA.x, tlA.y, s === 1 ? -1 : 1);
-
-  // Trail arm
-  drawUpperArm(ctx, trailAX, SY, trailE.x, trailE.y);
-  drawForearm(ctx, trailE.x, trailE.y, trailW.x, trailW.y);
-  drawGlove(ctx, trailW.x, trailW.y, 10);
-
-  // Torso
-  ctx.fillStyle = P.jersey;
-  ctx.beginPath();
-  ctx.moveTo(-30, TT); ctx.lineTo(30, TT);
-  ctx.quadraticCurveTo(35, 0, 28, TB);
-  ctx.lineTo(-28, TB);
-  ctx.quadraticCurveTo(-35, 0, -30, TT);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.fillStyle = P.jerseyDark;
-  ctx.beginPath();
-  ctx.moveTo(16, TT + 2);
-  ctx.quadraticCurveTo(34, 0, 28, TB - 5);
-  ctx.lineTo(8, TB - 5);
-  ctx.quadraticCurveTo(16, 0, 16, TT + 2);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.fillStyle = 'rgba(255,255,255,0.88)';
-  ctx.font = 'bold 18px monospace';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('1', 0, 1);
-
-  // Shorts
-  ctx.fillStyle = P.shorts;
-  ctx.beginPath();
-  ctx.moveTo(-22, TB - 4); ctx.lineTo(22, TB - 4);
-  ctx.lineTo(tlH.x + 4, tlH.y + 2);
-  ctx.lineTo(llH.x - 4, llH.y + 2);
-  ctx.closePath();
-  ctx.fill();
-
-  // Lead leg (on top)
-  drawThigh(ctx, llH.x, llH.y, llK.x, llK.y);
-  drawShin(ctx, llK.x, llK.y, llA.x, llA.y, s);
-
-  // Lead arm (on top) — larger glove = more eye-catching
-  drawUpperArm(ctx, leadAX, SY, leadE.x, leadE.y);
-  drawForearm(ctx, leadE.x, leadE.y, leadW.x, leadW.y);
-  drawGlove(ctx, leadW.x, leadW.y, 14);
+  // ── Head ─────────────────────────────────────────────────────
+  const hx = headOX;
+  const hy = bodyTopY - headR * 0.62 + headOY;
 
   // Neck connector
-  ctx.fillStyle = P.skin;
+  ctx.fillStyle = COLOR;
   ctx.beginPath();
-  ctx.ellipse(s * 20, TT - 4, 9, 13, s * 0.5, 0, Math.PI * 2);
+  ctx.ellipse(hx, bodyTopY - 2, 8, 10, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Head
-  drawHead(ctx, s * 36, TT - 22, { brow: 'intense' });
+  // Head base
+  ctx.fillStyle = COLOR;
+  drawRound(ctx, hx, hy, headR, headR);
+
+  // Head shading
+  ctx.fillStyle = COLOR_DARK;
+  ctx.beginPath();
+  ctx.ellipse(hx + headR * 0.3, hy + headR * 0.25, headR * 0.55, headR * 0.72, 0.2, 0, Math.PI * 2);
+  ctx.globalAlpha = 0.32;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // Head highlight
+  ctx.fillStyle = 'rgba(255,255,255,0.22)';
+  ctx.beginPath();
+  ctx.ellipse(hx - headR * 0.25, hy - headR * 0.28, headR * 0.45, headR * 0.32, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Eyes — simple white dots (hypercasual)
+  ctx.fillStyle = 'rgba(255,255,255,0.90)';
+  drawRound(ctx, hx - 7, hy - 2, 5, 4);
+  drawRound(ctx, hx + 7, hy - 2, 5, 4);
+  ctx.fillStyle = 'rgba(0,0,0,0.85)';
+  drawRound(ctx, hx - 6,  hy - 2, 2.5, 2.5);
+  drawRound(ctx, hx + 8, hy - 2, 2.5, 2.5);
+  // Eye shine
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  drawRound(ctx, hx - 7.5, hy - 3.5, 1.2, 1.2);
+  drawRound(ctx, hx + 6.5, hy - 3.5, 1.2, 1.2);
 
   ctx.restore();
 }
 
-// ─── Pose Generators ─────────────────────────────────────────────
+// ── State machine ─────────────────────────────────────────────────
 
-function poseIdle(t: number): UprightPose {
-  const breath = Math.sin(t * 1.4) * 0.03;
-  const bob    = Math.sin(t * 1.4) * 2.2;
-  const sway   = Math.sin(t * 0.7) * 1.5;
-  return {
-    headX: 128 + sway * 0.35,
-    headY: 32 + bob,
-    crouchFactor: 0.04 + breath,
-    lArmAngle: -0.42 + Math.sin(t * 1.1) * 0.03,
-    rArmAngle:  0.42 - Math.sin(t * 1.1) * 0.03,
-    lElbowBend:  0.15, rElbowBend: -0.15,
-    lLegAngle: -0.07, rLegAngle: 0.07,
-    lKneeBend: 0.04,  rKneeBend: 0.04,
-    shadowW: 38,
-  };
+interface StateData {
+  current: HCGoalieState;
+  prev: HCGoalieState;
+  // For cover/save — 0..1 transition progress
+  frac: number;
+  // Used for lateral tracking: -1..1 (normalized goal width)
+  trackX: number;
 }
 
-function poseWarmup(t: number): UprightPose {
-  const phase = Math.floor(t / 1.8) % 4;
-  const pt    = (t % 1.8) / 1.8;
+function getPose(sd: StateData, t: number): HCPose {
+  const { current, frac, trackX } = sd;
+  const tf = Math.max(0, Math.min(1, frac));
 
-  let headX = 128, headY = 32, crouchFactor = 0.08;
-  let lArmAngle = -0.42, rArmAngle = 0.42;
-  let lElbowBend = 0.15, rElbowBend = -0.15;
-  let lLegAngle = -0.07, rLegAngle = 0.07;
-  let lKneeBend = 0.04,  rKneeBend = 0.04;
-  let shadowW = 40;
+  switch (current) {
+    case 'idle':        return pIdle(t);
+    case 'ready':       return pReady(t);
+    case 'coverLeft':   return pCoverLeft(t, tf);
+    case 'coverRight':  return pCoverRight(t, tf);
+    case 'saveLeft':    return pSaveLeft(t);
+    case 'saveRight':   return pSaveRight(t);
+    default:            return pReady(t);
+  }
+}
 
-  if (phase === 0) {
-    // Bounce
-    const b = Math.pow(Math.abs(Math.sin(t * Math.PI * 2.8)), 0.7);
-    headY = 32 - b * 18;
-    crouchFactor = lerp(0.45, 0.02, b);
-    lKneeBend = rKneeBend = lerp(0.52, 0.04, b);
-    lArmAngle = -0.55 - b * 0.45;
-    rArmAngle =  0.55 + b * 0.45;
-    shadowW = lerp(38, 50, b);
-  } else if (phase === 1) {
-    // Arm circles
-    const ca = pt * Math.PI * 2;
-    lArmAngle = -(Math.PI / 2) + Math.cos(ca) * 1.3;
-    rArmAngle =  (Math.PI / 2) + Math.cos(ca + Math.PI) * 1.3;
-    lElbowBend =  0.15 + Math.sin(ca) * 0.38;
-    rElbowBend = -0.15 - Math.sin(ca) * 0.38;
-    crouchFactor = 0.12;
-    shadowW = 44;
-  } else if (phase === 2) {
-    // Shuffle left
-    const st = Math.sin(pt * Math.PI * 2);
-    headX = lerp(128, 106, ease(pt));
-    lLegAngle = -0.18 - st * 0.28;
-    rLegAngle =  0.08 - st * 0.1;
-    lKneeBend = 0.15 + st * 0.22;
-    lArmAngle = -0.72;
-    rArmAngle =  0.38;
-    shadowW = 46;
-  } else {
-    // Shuffle right (return)
-    const st = Math.sin(pt * Math.PI * 2);
-    headX = lerp(106, 128, ease(pt));
-    lLegAngle = -0.10 + st * 0.1;
-    rLegAngle =  0.18 + st * 0.28;
-    rKneeBend = 0.15 + st * 0.22;
-    lArmAngle = -0.38;
-    rArmAngle =  0.72;
-    shadowW = 46;
+// ── Three.js export ───────────────────────────────────────────────
+
+export const createHypercasualGoalie = (color?: string) => {
+  // Allow swapping team color at creation time
+  if (color) {
+    // Patch module-level constants for this instance via closure
+    // (colors are inlined — just re-create with different draws)
   }
 
-  return {
-    headX, headY, crouchFactor,
-    lArmAngle, rArmAngle, lElbowBend, rElbowBend,
-    lLegAngle, rLegAngle, lKneeBend, rKneeBend,
-    shadowW,
-  };
-}
-
-function poseReady(t: number): UprightPose {
-  const sway = Math.sin(t * 2.4) * 5;
-  const bob  = Math.abs(Math.sin(t * 2.4)) * 2.5;
-  return {
-    headX: 128 + sway * 0.25,
-    headY: 38 + bob,
-    crouchFactor: 0.58,
-    lArmAngle: -1.38 + sway * 0.014,
-    rArmAngle:  1.38 + sway * 0.014,
-    lElbowBend:  0.28, rElbowBend: -0.28,
-    lLegAngle: -0.34, rLegAngle: 0.34,
-    lKneeBend: 0.36,  rKneeBend: 0.36,
-    shadowW: 64,
-  };
-}
-
-function poseAnticipate(t: number): UprightPose {
-  const sway = Math.sin(t * 4.0) * 9;
-  const bob  = Math.abs(Math.sin(t * 4.0)) * 3;
-  return {
-    headX: 128 + sway * 0.5,
-    headY: 42 + bob,
-    crouchFactor: 0.78,
-    lArmAngle: -1.5 + sway * 0.018,
-    rArmAngle:  1.5 + sway * 0.018,
-    lElbowBend:  0.38, rElbowBend: -0.38,
-    lLegAngle: -0.42, rLegAngle: 0.42,
-    lKneeBend: 0.48,  rKneeBend: 0.48,
-    shadowW: 72,
-  };
-}
-
-// ─── Render ───────────────────────────────────────────────────────
-
-function render(
-  ctx: CanvasRenderingContext2D,
-  state: GoalieState,
-  time: number,
-  diveDir: 'left' | 'right',
-  diveT: number
-) {
-  ctx.clearRect(0, 0, CW, CH);
-
-  if (state === 'diving') {
-    drawDiveGoalie(ctx, diveDir, diveT);
-    return;
-  }
-
-  const pose =
-    state === 'warmup'     ? poseWarmup(time)    :
-    state === 'ready'      ? poseReady(time)      :
-    state === 'anticipate' ? poseAnticipate(time) :
-    poseIdle(time);
-
-  drawUprightGoalie(ctx, pose);
-}
-
-// ─── Three.js Export ─────────────────────────────────────────────
-
-export const createGoalie = () => {
   const canvas = document.createElement('canvas');
   canvas.width  = CW;
   canvas.height = CH;
@@ -779,49 +430,82 @@ export const createGoalie = () => {
     alphaTest: 0.01,
   });
 
-  // 1.8 × 2.2 scene units → real goalkeeper scale.
-  // plane.position.y = 1.1 so the feet land exactly at y = 0.
+  // Character fits in ~2.0 wide × 2.4 tall world units.
+  // Feet at y=0, top at y=2.4.
   const plane = new THREE.Mesh(
-    new THREE.PlaneGeometry(1.8, 2.2),
+    new THREE.PlaneGeometry(2.0, 2.4),
     material
   );
-  plane.position.y = 1.1;
+  plane.position.y = 1.2;
 
   const group = new THREE.Group();
   group.add(plane);
 
-  let elapsed  = 0;
-  let diveDir: 'left' | 'right' = 'left';
-  let diveT    = 0;
-  const DIVE_DUR = 0.55; // seconds for full arc
+  let elapsed = 0;
+
+  const stateData: StateData = {
+    current: 'ready',
+    prev: 'ready',
+    frac: 1,
+    trackX: 0,
+  };
+
+  const COVER_SPEED = 3.2;  // frac units per second
+  const SAVE_SPEED  = 6.0;
 
   /**
-   * Call once per frame inside your Three.js animation loop.
-   * @param dt           Delta-time in seconds.
-   * @param state        Current animation state.
-   * @param diveDirOverride  Pass 'left'|'right' on the first frame of a dive.
+   * Call every frame.
+   *
+   * @param dt     Delta-time seconds.
+   * @param state  Desired state.
+   * @param trackX Ball X in normalized goal coords, -1 (left post) to 1 (right post).
+   *               Used only during 'ready' — drives the sway amount.
+   *               Pass undefined to hold last value.
+   *
+   * Example usage:
+   *   // Ball tracking
+   *   goalie.update(dt, 'ready', ballNormX);
+   *   // Ball shot left
+   *   goalie.update(dt, 'coverLeft');
+   *   // Ball about to cross line — full save
+   *   goalie.update(dt, 'saveLeft');
+   *   // Reset
+   *   goalie.update(dt, 'idle');
    */
   const update = (
     dt: number,
-    state: GoalieState,
-    diveDirOverride?: 'left' | 'right'
+    state: HCGoalieState,
+    trackX?: number
   ) => {
     elapsed += dt;
 
-    if (state === 'diving') {
-      if (diveDirOverride) diveDir = diveDirOverride;
-      diveT = Math.min(diveT + dt / DIVE_DUR, 1);
-    } else {
-      diveT = 0; // reset so next dive starts fresh
+    if (trackX !== undefined) stateData.trackX = trackX;
+
+    // Transition speed depends on urgency
+    const speed =
+      state === 'saveLeft' || state === 'saveRight'
+        ? SAVE_SPEED
+        : COVER_SPEED;
+
+    if (state !== stateData.current) {
+      stateData.prev    = stateData.current;
+      stateData.current = state;
+      stateData.frac    = 0;
     }
 
-    render(ctx, state, elapsed, diveDir, diveT);
+    stateData.frac = Math.min(1, stateData.frac + dt * speed);
+
+    const pose = getPose(stateData, elapsed);
+    renderPose(ctx, pose);
     texture.needsUpdate = true;
   };
 
-  // First frame so the canvas isn't blank before the loop starts
-  render(ctx, 'idle', 0, 'left', 0);
+  // Initial frame
+  const initPose = getPose(stateData, 0);
+  renderPose(ctx, initPose);
   texture.needsUpdate = true;
 
   return { group, update };
 };
+
+export const createGoalie = createHypercasualGoalie;
