@@ -6,9 +6,12 @@ import { viteSingleFile } from "vite-plugin-singlefile";
 
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   return {
     plugins: [preact(), tailwindcss(), viteSingleFile()],
     build: {
+      outDir: `dist/${timestamp}`,
+      target: 'esnext',
       assetsInlineLimit: 100000000,
       minify: 'terser',
       terserOptions: {
