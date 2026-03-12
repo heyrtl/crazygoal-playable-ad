@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 
 export const createStriker = () => {
-  const color = '#4fc3f7';
+  const color = '#00ffff';
   const group = new THREE.Group();
-  const material = new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.1 });
+  const material = new THREE.MeshStandardMaterial({ color, roughness: 0.3, metalness: 0.1, emissive: '#00ffff', emissiveIntensity: 0.2 });
   
   // Head
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 32, 32), material);
@@ -100,6 +100,21 @@ export const createStriker = () => {
   leftArmPivot.rotation.x = -Math.PI / 6;
   rightArmPivot.rotation.x = Math.PI / 6;
 
+  let elapsed = 0;
+  const update = (dt: number, state: 'idle' | 'aiming' | 'kicking') => {
+    elapsed += dt;
+    if (state === 'idle') {
+      const bounce = Math.abs(Math.sin(elapsed * 8)) * 0.1;
+      group.position.y = bounce;
+      
+      const swing = Math.sin(elapsed * 8) * 0.3;
+      leftArmPivot.rotation.x = THREE.MathUtils.lerp(leftArmPivot.rotation.x, swing, dt * 10);
+      rightArmPivot.rotation.x = THREE.MathUtils.lerp(rightArmPivot.rotation.x, -swing, dt * 10);
+      leftLegPivot.rotation.x = THREE.MathUtils.lerp(leftLegPivot.rotation.x, -swing, dt * 10);
+      rightLegPivot.rotation.x = THREE.MathUtils.lerp(rightLegPivot.rotation.x, swing, dt * 10);
+    }
+  };
+
   return { 
     group, 
     head,
@@ -107,6 +122,7 @@ export const createStriker = () => {
     leftArm: leftArmPivot, 
     rightArm: rightArmPivot, 
     leftLeg: leftLegPivot, 
-    rightLeg: rightLegPivot 
+    rightLeg: rightLegPivot,
+    update
   };
 };

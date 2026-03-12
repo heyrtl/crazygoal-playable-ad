@@ -389,6 +389,18 @@ export const GameCanvas = ({ gameState, setGameState, onGoal, playAudio, isViewa
       }
     };
 
+    // Ball Trail
+    const trailPoints: THREE.Mesh[] = [];
+    const trailGeo = new THREE.SphereGeometry(0.15, 8, 8);
+    const trailMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
+    for (let i = 0; i < 20; i++) {
+      const mesh = new THREE.Mesh(trailGeo, trailMat.clone());
+      mesh.visible = false;
+      scene.add(mesh);
+      trailPoints.push(mesh);
+    }
+    let trailIndex = 0;
+
     // State variables
     let dragStart = new THREE.Vector2();
     let dragCurrent = new THREE.Vector2();
@@ -480,6 +492,7 @@ export const GameCanvas = ({ gameState, setGameState, onGoal, playAudio, isViewa
       lastTime = now;
 
       if (gameStateRef.current === 'Aiming') {
+        goalie.update(dt, 'ready');
         const dx = dragStart.x - dragCurrent.x;
         const dy = dragCurrent.y - dragStart.y;
         const power = Math.min(dy / 20, 15);
@@ -508,10 +521,8 @@ export const GameCanvas = ({ gameState, setGameState, onGoal, playAudio, isViewa
         striker.leftArm.rotation.x = -Math.PI / 6 - pullBackAngle * 0.5;
         striker.rightArm.rotation.x = Math.PI / 6 + pullBackAngle * 0.5;
       } else if (gameStateRef.current === 'Idle') {
-        // Reset pose smoothly
-        striker.rightLeg.rotation.x = THREE.MathUtils.lerp(striker.rightLeg.rotation.x, 0, dt * 10);
-        striker.leftArm.rotation.x = THREE.MathUtils.lerp(striker.leftArm.rotation.x, -Math.PI / 6, dt * 10);
-        striker.rightArm.rotation.x = THREE.MathUtils.lerp(striker.rightArm.rotation.x, Math.PI / 6, dt * 10);
+        goalie.update(dt, 'idle');
+        striker.update(dt, 'idle');
       }
 
       if (isKicking) {
@@ -545,20 +556,24 @@ export const GameCanvas = ({ gameState, setGameState, onGoal, playAudio, isViewa
         ball.rotation.x -= ballVelocity.z * dt;
         ball.rotation.z += ballVelocity.x * dt;
 
+        // Update trail
+        const tMesh = trailPoints[trailIndex];
+        tMesh.position.copy(ball.position);
+        tMesh.visible = true;
+        (tMesh.material as THREE.MeshBasicMaterial).opacity = 0.5;
+        trailIndex = (trailIndex + 1) % trailPoints.length;
+
         // Goalie AI
         if (!goalieDiving && ball.position.z < -1) {
           goalieDiving = true;
         }
         if (goalieDiving && goalie.group.position.x < 2) {
+           goalie.update(dt, 'saveLeft');
            goalie.group.position.x += 5 * dt;
            goalie.group.position.y = THREE.MathUtils.lerp(goalie.group.position.y, 0.5, dt * 5);
            goalie.group.rotation.z = THREE.MathUtils.lerp(goalie.group.rotation.z, -Math.PI / 2, dt * 10);
-           
-           // Stretch arms out
-           goalie.leftArm.rotation.z = THREE.MathUtils.lerp(goalie.leftArm.rotation.z, Math.PI / 2, dt * 10);
-           goalie.rightArm.rotation.z = THREE.MathUtils.lerp(goalie.rightArm.rotation.z, -Math.PI / 2, dt * 10);
-           goalie.leftLeg.rotation.z = THREE.MathUtils.lerp(goalie.leftLeg.rotation.z, 0, dt * 10);
-           goalie.rightLeg.rotation.z = THREE.MathUtils.lerp(goalie.rightLeg.rotation.z, 0, dt * 10);
+        } else if (!goalieDiving) {
+           goalie.update(dt, 'ready');
         }
 
         // Goal collision
@@ -583,6 +598,15 @@ export const GameCanvas = ({ gameState, setGameState, onGoal, playAudio, isViewa
             shakeTime = 0.2;
             shakeIntensity = 0.1;
           }
+        }
+      }
+
+      // Fade out trail points
+      for (let i = 0; i < trailPoints.length; i++) {
+        if (trailPoints[i].visible) {
+          const mat = trailPoints[i].material as THREE.MeshBasicMaterial;
+          mat.opacity -= dt * 1.5;
+          if (mat.opacity <= 0) trailPoints[i].visible = false;
         }
       }
 

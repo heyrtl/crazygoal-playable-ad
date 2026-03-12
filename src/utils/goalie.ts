@@ -3,9 +3,9 @@ import * as THREE from 'three';
 export type GoalieState = 'idle' | 'ready' | 'coverLeft' | 'coverRight' | 'saveLeft' | 'saveRight';
 
 export const createGoalie = () => {
-  const color = '#e74c3c';
+  const color = '#ff1111';
   const group = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.1 });
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.3, metalness: 0.1, emissive: '#ff0000', emissiveIntensity: 0.2 });
 
   // Head
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 32, 32), mat);
@@ -71,10 +71,10 @@ export const createGoalie = () => {
 
   // Target rotations
   const target = {
-    lArmZ:  Math.PI / 4,
-    rArmZ: -Math.PI / 4,
-    lLegZ:  Math.PI / 8,
-    rLegZ: -Math.PI / 8,
+    lArmZ:  Math.PI / 2.5,
+    rArmZ: -Math.PI / 2.5,
+    lLegZ:  Math.PI / 6,
+    rLegZ: -Math.PI / 6,
     groupX: 0,
   };
 
@@ -85,8 +85,8 @@ export const createGoalie = () => {
       groupX: 0,
     },
     ready: {
-      lArmZ:  Math.PI / 4,  rArmZ: -Math.PI / 4,
-      lLegZ:  Math.PI / 8,  rLegZ: -Math.PI / 8,
+      lArmZ:  Math.PI / 2.5,  rArmZ: -Math.PI / 2.5,
+      lLegZ:  Math.PI / 6,  rLegZ: -Math.PI / 6,
       groupX: 0,
     },
     coverLeft: {
@@ -135,6 +135,7 @@ export const createGoalie = () => {
     // Idle bob
     if (state === 'idle' || state === 'ready') {
       group.position.y = -0.1 + Math.sin(elapsed * 2.5) * 0.04;
+      group.position.x = Math.sin(elapsed * 2) * 1.5;
     }
   };
 
