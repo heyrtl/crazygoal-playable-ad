@@ -45,8 +45,8 @@ export const GameCanvas = ({ gameState, setGameState, onGoal, playAudio, isViewa
 
     // Camera
     const camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 100);
-    camera.position.set(0, 8, 8); // 45 degree top-down view
-    camera.lookAt(0, 0, -2); // Focus on the play area
+    camera.position.set(0, 6, 6); // Closer 45 degree top-down view
+    camera.lookAt(0, 0, -1); // Focused closer to the striker/play area
 
     // Renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -271,15 +271,14 @@ export const GameCanvas = ({ gameState, setGameState, onGoal, playAudio, isViewa
       // Responsive framing based on orientation
       if (aspect < 1) {
         // Portrait: Increase FOV to keep striker (z=3.5) in frame
-        // fov = baseFov / aspect, capped to avoid fish-eye
-        camera.fov = Math.min(50 / aspect, 85);
-        camera.position.set(0, 8 + (1 - aspect) * 2, 8 + (1 - aspect) * 4); // Pull back slightly
+        camera.fov = Math.min(50 / aspect, 80);
+        camera.position.set(0, 6 + (1 - aspect) * 1.5, 6 + (1 - aspect) * 3);
       } else {
         // Landscape: Return to base framing
         camera.fov = 45;
-        camera.position.set(0, 8, 8);
+        camera.position.set(0, 6, 6);
       }
-      camera.lookAt(0, 0, -2);
+      camera.lookAt(0, 0, -1);
       
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);

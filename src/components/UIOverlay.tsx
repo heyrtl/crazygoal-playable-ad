@@ -91,23 +91,22 @@ export const UIOverlay = ({ gameState, onDownload }: UIOverlayProps) => {
 
       {/* Instruction & Hand */}
       {gameState === 'Idle' && (
-        <div className="absolute top-[12%] landscape:top-[15%] left-1/2 -translate-x-1/2 w-[90%] max-w-[320px] landscape:max-w-xs flex flex-col items-center pointer-events-none z-20">
-          <div className="bg-black/70 backdrop-blur-lg border-2 border-white/20 rounded-[2rem] px-6 py-5 flex flex-col items-center shadow-2xl animate-[fadeIn_0.5s_ease-out] w-full">
-            <h2 className="text-[clamp(1.5rem,5vw,2.2rem)] text-white mb-4 text-center leading-tight uppercase tracking-wider" 
+        <div className="absolute top-[10%] landscape:top-[12%] left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-none z-20">
+          <div className="bg-black/75 backdrop-blur-md border border-white/20 rounded-xl px-4 py-2 flex items-center justify-center shadow-xl animate-[fadeIn_0.5s_ease-out] w-fit">
+            <h2 className="text-[clamp(1.2rem,4vw,1.8rem)] text-white text-center leading-none uppercase font-bold tracking-tight whitespace-nowrap" 
                 style={{ 
-                  WebkitTextStroke: '1px black',
-                  textShadow: '0 2px 0 #000'
+                  textShadow: '0 2px 4px rgba(0,0,0,0.5)'
                 }}>
               DRAG AND RELEASE
             </h2>
-            <div className="relative w-full h-12">
-              <img 
-                src={HAND_DATA} 
-                alt="Drag Hand" 
-                className="w-12 h-12 absolute top-0 left-1/2 -translate-x-1/2 animate-[dragDown_1.5s_infinite]"
-                style={{ filter: 'drop-shadow(0 4px 2px rgba(0,0,0,0.6))' }}
-              />
-            </div>
+          </div>
+          <div className="mt-4 relative w-12 h-12">
+            <img 
+              src={HAND_DATA} 
+              alt="Drag Hand" 
+              className="w-12 h-12 animate-[dragDown_1.5s_infinite]"
+              style={{ filter: 'drop-shadow(0 4px 2px rgba(0,0,0,0.6))' }}
+            />
           </div>
         </div>
       )}
