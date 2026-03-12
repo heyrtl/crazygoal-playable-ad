@@ -88,25 +88,25 @@ export const createGoalie = () => {
       torsoX: 0, posY: -0.1
     },
     ready: {
-      lArmX: -0.8, lArmY: 0.4, lArmZ: 1.4, // Arms much wider and further forward
-      rArmX: -0.8, rArmY: -0.4, rArmZ: -1.4,
-      lLegX: 0.9, lLegY: -0.3, lLegZ: 0.5, // Deeper squat and wider legs
-      rLegX: 0.9, rLegY: 0.3, rLegZ: -0.5,
-      torsoX: 0.4, // Significant forward lean
-      posY: -0.5   // Much lower center of gravity
+      lArmX: -0.1, lArmY: 0, lArmZ: 1.5, // Horizontal spread (Reference match)
+      rArmX: -0.1, rArmY: 0, rArmZ: -1.5,
+      lLegX: 0.8, lLegY: -0.2, lLegZ: 0.4, // Deep, wide squat
+      rLegX: 0.8, rLegY: 0.2, rLegZ: -0.4,
+      torsoX: 0.25, // Professional forward lean
+      posY: -0.4    // Balanced center of gravity
     },
     coverLeft: {
-      lArmX: -0.2, lArmY: 0.2, lArmZ: 1.4,
-      rArmX: -0.2, rArmY: -0.2, rArmZ: -0.3,
-      lLegX: 0.3, lLegY: -0.1, lLegZ: 0.5,
-      rLegX: 0.3, rLegY: 0.1, rLegZ: -0.2,
+      lArmX: -0.1, lArmY: 0, lArmZ: 1.6,
+      rArmX: -0.1, rArmY: 0, rArmZ: -0.4,
+      lLegX: 0.4, lLegY: -0.1, lLegZ: 0.5,
+      rLegX: 0.4, rLegY: 0.1, rLegZ: -0.2,
       torsoX: 0.1, posY: -0.2
     },
     coverRight: {
-      lArmX: -0.2, lArmY: 0.2, lArmZ: 0.3,
-      rArmX: -0.2, rArmY: -0.2, rArmZ: -1.4,
-      lLegX: 0.3, lLegY: -0.1, lLegZ: 0.2,
-      rLegX: 0.3, rLegY: 0.1, rLegZ: -0.5,
+      lArmX: -0.1, lArmY: 0, lArmZ: 0.4,
+      rArmX: -0.1, rArmY: 0, rArmZ: -1.6,
+      lLegX: 0.4, lLegY: -0.1, lLegZ: 0.2,
+      rLegX: 0.4, rLegY: 0.1, rLegZ: -0.5,
       torsoX: 0.1, posY: -0.2
     },
     saveLeft: {
@@ -160,16 +160,16 @@ export const createGoalie = () => {
 
     // Side-to-side shuffle logic
     if (state === 'idle' || state === 'ready') {
-      const shuffleDist = state === 'ready' ? 2.8 : 1.2;
-      const shuffleFreq = state === 'ready' ? 5.0 : 2;
+      const shuffleDist = state === 'ready' ? 1.6 : 1.2;
+      const shuffleFreq = state === 'ready' ? 2.5 : 2; // Calibrated simple speed
       group.position.x = Math.sin(elapsed * shuffleFreq) * shuffleDist;
       
       // Add subtle bobbing while shuffling
-      group.position.y += Math.abs(Math.cos(elapsed * shuffleFreq * 2)) * 0.08;
+      group.position.y += Math.abs(Math.cos(elapsed * shuffleFreq * 2)) * 0.04;
       
       // Look towards center or ball (simplified look-at) + lean into movement
-      group.rotation.y = -group.position.x * 0.15;
-      group.rotation.z = -Math.cos(elapsed * shuffleFreq) * 0.1;
+      group.rotation.y = -group.position.x * 0.1;
+      group.rotation.z = -Math.cos(elapsed * shuffleFreq) * 0.05; // Subtler lean
     }
   };
 
