@@ -264,11 +264,22 @@ export const GameCanvas = ({ gameState, setGameState, onGoal, playAudio, isViewa
       if (!containerRef.current) return;
       const w = containerRef.current.clientWidth;
       const h = containerRef.current.clientHeight;
-      camera.aspect = w / h;
+      const aspect = w / h;
+      
+      camera.aspect = aspect;
+      
+      // Dynamic FOV for tall screens (portrait) to keep striker in frame
+      if (aspect < 1) {
+        camera.fov = 60 / aspect; // Increase FOV as screen gets narrower
+      } else {
+        camera.fov = 60;
+      }
+      
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
     };
     window.addEventListener('resize', onResize);
+    onResize(); // Initial call
 
     // --- Animation Loop ---
     let lastTime = performance.now();
