@@ -7,11 +7,15 @@ export const createGoalie = () => {
   const group = new THREE.Group();
   const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.3, metalness: 0.1, emissive: '#ff0000', emissiveIntensity: 0.2 });
 
+  // Body Group (for tilting/leaning everything together)
+  const bodyGroup = new THREE.Group();
+  group.add(bodyGroup);
+
   // Head
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 32, 32), mat);
   head.position.y = 1.6;
   head.castShadow = true;
-  group.add(head);
+  bodyGroup.add(head);
 
   // Eyes
   const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
@@ -19,42 +23,42 @@ export const createGoalie = () => {
   [-0.1, 0.1].forEach(x => {
     const eye = new THREE.Mesh(eyeGeo, eyeMat);
     eye.position.set(x, 1.65, 0.25);
-    group.add(eye);
+    bodyGroup.add(eye);
   });
 
   // Torso
   const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.2, 0.5, 4, 16), mat);
   torso.position.y = 1.05;
   torso.castShadow = true;
-  group.add(torso);
+  bodyGroup.add(torso);
 
   // Arms
   const makeArm = (sx: number) => {
     const pivot = new THREE.Group();
-    pivot.position.set(sx * 0.45, 1.25, 0); // Widened pivot (0.3 -> 0.45)
-    const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.08, 0.5, 4, 16), mat); // Lengthened (0.35 -> 0.5)
+    pivot.position.set(sx * 0.45, 1.25, 0); 
+    const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.08, 0.5, 4, 16), mat); 
     arm.position.y = -0.25;
     arm.castShadow = true;
     const hand = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), mat);
     hand.position.y = -0.55;
     pivot.add(arm, hand);
-    group.add(pivot);
+    bodyGroup.add(pivot);
     return pivot;
   };
 
   // Legs
   const makeLeg = (sx: number) => {
     const pivot = new THREE.Group();
-    pivot.position.set(sx * 0.25, 0.7, 0); // Widened pivot (0.15 -> 0.25)
-    const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.6, 4, 16), mat); // Lengthened (0.4 -> 0.6)
+    pivot.position.set(sx * 0.25, 0.7, 0); 
+    const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.6, 4, 16), mat); 
     leg.position.y = -0.3;
     leg.castShadow = true;
-    const foot = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.15, 4, 16), mat);
-    foot.position.set(0, -0.65, 0.05);
+    const foot = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.18, 4, 16), mat);
+    foot.position.set(0, -0.6, 0.05); // Adjusted to be flush with leg
     foot.rotation.x = Math.PI / 2;
     foot.castShadow = true;
     pivot.add(leg, foot);
-    group.add(pivot);
+    bodyGroup.add(pivot);
     return pivot;
   };
 
@@ -81,45 +85,45 @@ export const createGoalie = () => {
 
   const POSES: Record<GoalieState, any> = {
     idle: {
-      lArmX: 0, lArmY: 0, lArmZ: 0.6, // Wider arms in idle
+      lArmX: 0, lArmY: 0, lArmZ: 0.6, 
       rArmX: 0, rArmY: 0, rArmZ: -0.6,
-      lLegX: 0, lLegY: 0, lLegZ: 0.25, // Separated legs in idle
-      rLegX: 0, rLegY: 0, rLegZ: -0.25,
+      lLegX: 0, lLegY: 0, lLegZ: -0.25, // Outward legs (negative Z for left)
+      rLegX: 0, rLegY: 0, rLegZ: 0.25,  // Outward legs (positive Z for right)
       torsoX: 0, posY: -0.1
     },
     ready: {
       lArmX: -0.1, lArmY: 0, lArmZ: 1.5,
       rArmX: -0.1, rArmY: 0, rArmZ: -1.5,
-      lLegX: 0.7, lLegY: -0.3, lLegZ: 0.5, // Calibrated wider squat
-      rLegX: 0.7, rLegY: 0.3, rLegZ: -0.5,
+      lLegX: 0.7, lLegY: -0.3, lLegZ: -0.5, // Squat with outward knees
+      rLegX: 0.7, rLegY: 0.3, rLegZ: 0.5, 
       torsoX: 0.2, posY: -0.4
     },
     coverLeft: {
       lArmX: -0.1, lArmY: 0, lArmZ: 1.6,
       rArmX: -0.1, rArmY: 0, rArmZ: -0.4,
-      lLegX: 0.4, lLegY: -0.1, lLegZ: 0.5,
-      rLegX: 0.4, rLegY: 0.1, rLegZ: -0.2,
+      lLegX: 0.4, lLegY: -0.1, lLegZ: -0.5,
+      rLegX: 0.4, rLegY: 0.1, rLegZ: 0.2,
       torsoX: 0.1, posY: -0.2
     },
     coverRight: {
       lArmX: -0.1, lArmY: 0, lArmZ: 0.4,
       rArmX: -0.1, rArmY: 0, rArmZ: -1.6,
-      lLegX: 0.4, lLegY: -0.1, lLegZ: 0.2,
-      rLegX: 0.4, rLegY: 0.1, rLegZ: -0.5,
+      lLegX: 0.4, lLegY: -0.1, lLegZ: -0.2,
+      rLegX: 0.4, rLegY: 0.1, rLegZ: 0.5,
       torsoX: 0.1, posY: -0.2
     },
     saveLeft: {
-      lArmX: 0, lArmY: 0, lArmZ: 2.0,
-      rArmX: 0, rArmY: 0, rArmZ: -0.2,
-      lLegX: 0, lLegY: 0, lLegZ: 0.7,
-      rLegX: 0, rLegY: 0, rLegZ: -0.15,
+      lArmX: 0, lArmY: 0, lArmZ: 2.2, 
+      rArmX: 0, rArmY: 0, rArmZ: -0.5,
+      lLegX: 0, lLegY: 0, lLegZ: -0.8, // Spread legs on dive
+      rLegX: 0, rLegY: 0, rLegZ: 0.3,
       torsoX: 0, posY: 0
     },
     saveRight: {
-      lArmX: 0, lArmY: 0, lArmZ: 0.2,
-      rArmX: 0, rArmY: 0, rArmZ: -2.0,
-      lLegX: 0, lLegY: 0, lLegZ: 0.15,
-      rLegX: 0, rLegY: 0, rLegZ: -0.7,
+      lArmX: 0, lArmY: 0, lArmZ: 0.5,
+      rArmX: 0, rArmY: 0, rArmZ: -2.2,
+      lLegX: 0, lLegY: 0, lLegZ: -0.3,
+      rLegX: 0, rLegY: 0, rLegZ: 0.8,
       torsoX: 0, posY: 0
     },
   };
@@ -155,22 +159,25 @@ export const createGoalie = () => {
     leftLeg.rotation.set(current.lLegX, current.lLegY, current.lLegZ);
     rightLeg.rotation.set(current.rLegX, current.rLegY, current.rLegZ);
     torso.rotation.x = current.torsoX;
-    group.position.y = current.posY;
+    bodyGroup.position.y = current.posY;
 
     // Side-to-side shuffle logic
     if (state === 'idle' || state === 'ready') {
       const shuffleDist = state === 'ready' ? 1.6 : 1.2;
-      const shuffleFreq = state === 'ready' ? 2.5 : 2; // Calibrated simple speed
+      const shuffleFreq = state === 'ready' ? 2.5 : 2; 
       group.position.x = Math.sin(elapsed * shuffleFreq) * shuffleDist;
       
-      // Add subtle bobbing while shuffling
-      group.position.y += Math.abs(Math.cos(elapsed * shuffleFreq * 2)) * 0.04;
+      // Apply bobbing and lean to the bodyGroup so everything moves together
+      const bob = Math.abs(Math.cos(elapsed * shuffleFreq * 2)) * 0.04;
+      bodyGroup.position.y = current.posY + bob;
       
-      // Look towards center or ball (simplified look-at) + lean into movement
-      group.rotation.y = -group.position.x * 0.1;
-      group.rotation.z = -Math.cos(elapsed * shuffleFreq) * 0.05; // Subtler lean
+      bodyGroup.rotation.y = -group.position.x * 0.1;
+      bodyGroup.rotation.z = -Math.cos(elapsed * shuffleFreq) * 0.05; 
+    } else {
+      // For dives, clear shuffle rotation unless explicitly set
+      bodyGroup.rotation.y = 0;
     }
   };
 
-  return { group, head, torso, leftArm, rightArm, leftLeg, rightLeg, update };
+  return { group, bodyGroup, head, torso, leftArm, rightArm, leftLeg, rightLeg, update };
 };
