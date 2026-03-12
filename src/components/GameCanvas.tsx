@@ -270,13 +270,13 @@ export const GameCanvas = ({ gameState, setGameState, onGoal, playAudio, isViewa
       
       // Responsive framing based on orientation
       if (aspect < 1) {
-        // Portrait: Increase FOV to keep striker (z=3.5) in frame
+        // Portrait: Focus on striker and goal area
         camera.fov = Math.min(50 / aspect, 80);
         camera.position.set(0, 6 + (1 - aspect) * 1.5, 6 + (1 - aspect) * 3);
       } else {
-        // Landscape: Return to base framing
-        camera.fov = 45;
-        camera.position.set(0, 6, 6);
+        // Landscape: Use a wider 'desktop-style' view (Standard Soccer TV POV)
+        camera.fov = 40; 
+        camera.position.set(0, 7, 7); // Slightly higher and centered
       }
       camera.lookAt(0, 0, -1);
       
