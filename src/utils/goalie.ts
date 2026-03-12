@@ -88,12 +88,12 @@ export const createGoalie = () => {
       torsoX: 0, posY: -0.1
     },
     ready: {
-      lArmX: -0.5, lArmY: 0.4, lArmZ: 1.2, // Arms wide and slightly forward
-      rArmX: -0.5, rArmY: -0.4, rArmZ: -1.2,
-      lLegX: 0.6, lLegY: -0.2, lLegZ: 0.3, // Squatting: legs forward and out
-      rLegX: 0.6, rLegY: 0.2, rLegZ: -0.3,
-      torsoX: 0.2, // Lean forward
-      posY: -0.3   // Lower center of gravity
+      lArmX: -0.8, lArmY: 0.4, lArmZ: 1.4, // Arms much wider and further forward
+      rArmX: -0.8, rArmY: -0.4, rArmZ: -1.4,
+      lLegX: 0.9, lLegY: -0.3, lLegZ: 0.5, // Deeper squat and wider legs
+      rLegX: 0.9, rLegY: 0.3, rLegZ: -0.5,
+      torsoX: 0.4, // Significant forward lean
+      posY: -0.5   // Much lower center of gravity
     },
     coverLeft: {
       lArmX: -0.2, lArmY: 0.2, lArmZ: 1.4,
@@ -160,15 +160,16 @@ export const createGoalie = () => {
 
     // Side-to-side shuffle logic
     if (state === 'idle' || state === 'ready') {
-      const shuffleDist = state === 'ready' ? 1.8 : 1.2;
-      const shuffleFreq = state === 'ready' ? 3.5 : 2;
+      const shuffleDist = state === 'ready' ? 2.8 : 1.2;
+      const shuffleFreq = state === 'ready' ? 5.0 : 2;
       group.position.x = Math.sin(elapsed * shuffleFreq) * shuffleDist;
       
       // Add subtle bobbing while shuffling
-      group.position.y += Math.abs(Math.cos(elapsed * shuffleFreq * 2)) * 0.05;
+      group.position.y += Math.abs(Math.cos(elapsed * shuffleFreq * 2)) * 0.08;
       
-      // Look towards center or ball (simplified look-at)
-      group.rotation.y = -group.position.x * 0.1;
+      // Look towards center or ball (simplified look-at) + lean into movement
+      group.rotation.y = -group.position.x * 0.15;
+      group.rotation.z = -Math.cos(elapsed * shuffleFreq) * 0.1;
     }
   };
 
