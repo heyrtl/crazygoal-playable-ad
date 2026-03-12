@@ -274,9 +274,9 @@ export const GameCanvas = ({ gameState, setGameState, onGoal, playAudio, isViewa
         camera.fov = Math.min(50 / aspect, 80);
         camera.position.set(0, 6 + (1 - aspect) * 1.5, 6 + (1 - aspect) * 3);
       } else {
-        // Landscape: Use a wider 'desktop-style' view (Standard Soccer TV POV)
-        camera.fov = 40; 
-        camera.position.set(0, 7, 7); // Slightly higher and centered
+        // Landscape: Wide 'stadium' broadcast view
+        camera.fov = 55; 
+        camera.position.set(0, 8, 10); 
       }
       camera.lookAt(0, 0, -1);
       
